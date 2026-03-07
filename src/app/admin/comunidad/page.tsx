@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Gift, Medal, Plus, Trophy, Users } from 'lucide-react';
+import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { useOpenSession } from '@/hooks/useOpenSession';
 import { useUIExperience } from '@/hooks/useUIExperience';
 import { apiGet, apiMutation } from '@/lib/gymcrm/client-api';
+import type { PortalAccessIntent } from '@/lib/gymcrm/demo-ui';
 import { toUserErrorMessage } from '@/lib/gymcrm/error';
 import type { UIActionState } from '@/lib/ui/action-state';
 
@@ -66,8 +69,15 @@ type RankingResponse = {
     ranking: RankingEntry[];
   };
 };
+const COMUNIDAD_PORTAL_INTENT: PortalAccessIntent = {
+  route: '/admin/comunidad',
+  requiredRoles: ['admin', 'recepcion', 'entrenador', 'nutricionista'],
+  recommendedRole: 'admin',
+  ctaLabel: 'Entrar como staff demo',
+};
 
 export default function AdminComunidadPage() {
+  const { role: openRole, ready: sessionReady } = useOpenSession();
   const { fireHaptic } = useUIExperience();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -125,7 +135,7 @@ export default function AdminComunidadPage() {
 
     try {
       const me = await apiGet<MeResponse>('/api/gymcrm/me');
-      const canAccess = Boolean(me.data.ready && me.data.role?.rol !== 'cliente');
+      const canAccess = Boolean(me.data.ready && openRole !== 'cliente');
       setIsReady(canAccess);
 
       if (!canAccess) {
@@ -168,11 +178,12 @@ export default function AdminComunidadPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [premioServicioId, puntosClienteId]);
+  }, [openRole, premioServicioId, puntosClienteId]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, sessionReady, openRole]);
 
   const assignPoints = async () => {
     setAssignPointsState('loading');
@@ -295,7 +306,20 @@ export default function AdminComunidadPage() {
     return <div className="flex items-center justify-center min-h-[70vh] text-gray-400">Cargando comunidad...</div>;
   }
 
+  if (openRole === 'cliente') {
+    return (
+      <PortalAccessAssistant
+        intent={COMUNIDAD_PORTAL_INTENT}
+        currentRole={openRole}
+        title="Comunidad admin en modo demo"
+        description="Este módulo requiere rol staff. Cambia de rol para gestionar puntos, premios, canjes y ranking."
+        error={error}
+      />
+    );
+  }
+
   if (!isReady) {
+
     return (
       <div className="relative min-h-screen bg-background overflow-hidden">
         <NoiseTexture />

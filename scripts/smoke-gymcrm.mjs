@@ -289,18 +289,16 @@ const runSmoke = async () => {
   });
 
   await run('comunidad.request_canje', async () => {
-    const cookie = clientCookie || staffCookie;
-    const body = clientCookie
-      ? { premio_id: state.premioId }
-      : { premio_id: state.premioId, cliente_id: clientPrimary };
-
     const payload = await expectOk(
       'comunidad.request_canje',
       requestJson({
         method: 'POST',
         path: '/api/gymcrm/comunidad/canjes',
-        cookie,
-        body,
+        cookie: staffCookie,
+        body: {
+          premio_id: state.premioId,
+          cliente_id: clientPrimary,
+        },
       })
     );
 

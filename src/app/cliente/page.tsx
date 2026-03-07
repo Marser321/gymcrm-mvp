@@ -6,8 +6,11 @@ import Link from 'next/link';
 import { Calendar, CreditCard, QrCode, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
+import { useOpenSession } from '@/hooks/useOpenSession';
 import { useUIExperience } from '@/hooks/useUIExperience';
 import { apiGet, apiMutation } from '@/lib/gymcrm/client-api';
+import type { PortalAccessIntent } from '@/lib/gymcrm/demo-ui';
 import { toUserErrorMessage } from '@/lib/gymcrm/error';
 
 type MeResponse = {
@@ -133,7 +136,15 @@ type Medicion = {
 const DEFAULT_CONSENT_TEXT =
   'Acepto el seguimiento nutricional no clínico del centro, con fines educativos y de mejora de hábitos saludables.';
 
+const CLIENT_PORTAL_INTENT: PortalAccessIntent = {
+  route: '/cliente',
+  requiredRoles: ['cliente'],
+  recommendedRole: 'cliente',
+  ctaLabel: 'Entrar como cliente demo',
+};
+
 export default function ClientePage() {
+  const { role: openRole, ready: sessionReady } = useOpenSession();
   const { fireHaptic } = useUIExperience();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -294,8 +305,9 @@ export default function ClientePage() {
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, sessionReady, openRole]);
 
   const reserveDynamicSession = async (sesionId: string) => {
     setIsMutating(true);
@@ -417,14 +429,26 @@ export default function ClientePage() {
   }
 
   if (!me?.ready || !me?.cliente) {
+    if (openRole !== 'cliente') {
+      return (
+        <PortalAccessAssistant
+          intent={CLIENT_PORTAL_INTENT}
+          currentRole={openRole}
+          title="Portal cliente en modo demo"
+          description="Este portal se prueba con rol cliente. Cambia el rol y entra directo para recorrer reservas, canjes y nutricion."
+          error={error}
+        />
+      );
+    }
+
     return (
       <div className="relative min-h-screen bg-background overflow-hidden pb-20">
         <NoiseTexture />
         <div className="relative z-10 max-w-4xl mx-auto px-6 py-20">
           <GlassPanel>
-            <h1 className="text-3xl font-bold text-white mb-3">Portal aún no disponible</h1>
+            <h1 className="text-3xl font-bold text-white mb-3">Portal cliente sin perfil vinculado</h1>
             <p className="text-gray-300">
-              Tu cuenta todavía no está vinculada como cliente activo. Solicita activación en recepción.
+              Esta sesion ya esta en rol cliente, pero no tiene ficha activa asociada. Crea o vincula cliente desde admin para probar el flujo completo.
             </p>
             {error ? <p className="mt-4 text-red-300">{error}</p> : null}
           </GlassPanel>

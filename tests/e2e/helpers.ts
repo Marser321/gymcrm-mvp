@@ -29,10 +29,11 @@ export const clientCookie = (process.env.E2E_CLIENT_COOKIE ?? seedOutput.clientC
 export const hasStaffCookie = staffCookie.length > 0;
 export const hasClientCookie = clientCookie.length > 0;
 
+export const playwrightBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100';
+
 export const applyCookieHeader = async (context: BrowserContext, cookieHeader: string) => {
   await context.setExtraHTTPHeaders({ cookie: cookieHeader });
 
-  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100';
   const cookies = cookieHeader
     .split(';')
     .map((entry) => entry.trim())
@@ -43,7 +44,7 @@ export const applyCookieHeader = async (context: BrowserContext, cookieHeader: s
       return {
         name: entry.slice(0, separator).trim(),
         value: entry.slice(separator + 1).trim(),
-        url: baseUrl,
+        url: playwrightBaseUrl,
       };
     })
     .filter((entry): entry is { name: string; value: string; url: string } => Boolean(entry));
@@ -51,6 +52,21 @@ export const applyCookieHeader = async (context: BrowserContext, cookieHeader: s
   if (cookies.length > 0) {
     await context.addCookies(cookies);
   }
+};
+
+export const applyOpenRoleCookie = async (
+  context: BrowserContext,
+  role: 'admin' | 'recepcion' | 'entrenador' | 'cliente' | 'nutricionista'
+) => {
+  await context.clearCookies();
+  await context.setExtraHTTPHeaders({});
+  await context.addCookies([
+    {
+      name: 'gymcrm_open_role',
+      value: role,
+      url: playwrightBaseUrl,
+    },
+  ]);
 };
 
 export const localDateTime = (date: Date): string => {

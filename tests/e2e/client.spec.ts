@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   applyCookieHeader,
+  applyOpenRoleCookie,
   clientCookie,
   hasClientCookie,
   hasStaffCookie,
@@ -28,6 +29,20 @@ test.describe('Cliente portal critical flows', () => {
 
   test.beforeEach(async ({ context }) => {
     await applyCookieHeader(context, clientCookie);
+  });
+
+  test('ruta /cliente con rol admin muestra cambio de rol y permite entrar al portal demo', async ({ page, context }) => {
+    await applyOpenRoleCookie(context, 'admin');
+    await page.goto('/cliente');
+
+    await expect(page.getByTestId('portal-access-card')).toBeVisible();
+    await expect(page.getByTestId('portal-access-switch-role')).toBeVisible();
+    await page.getByTestId('portal-access-switch-role').click();
+
+    await expect(page).toHaveURL(/\/cliente/);
+    await expect(page.getByTestId('open-role-selector')).toHaveValue('cliente');
+    await expect(page.getByTestId('portal-access-card')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Portal Cliente' })).toBeVisible();
   });
 
   test('ruta /cliente carga bloques operativos sin dead UI', async ({ page }) => {

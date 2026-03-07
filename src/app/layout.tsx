@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Outfit } from 'next/font/google';
-import Link from 'next/link';
 import { InsforgeProvider } from './providers';
 import './globals.css';
 
@@ -9,7 +8,8 @@ import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher';
 import { ExperienceControls } from '@/components/ui/ExperienceControls';
 import { PWARegister } from '@/components/gymcrm/PWARegister';
 import { OpenRoleSelector } from '@/components/gymcrm/OpenRoleSelector';
-import { getGymcrmDataMode } from '@/lib/gymcrm/open-session';
+import { MainNavigation } from '@/components/gymcrm/MainNavigation';
+import { getGymcrmDataMode, getGymcrmNavMode } from '@/lib/gymcrm/open-session';
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' });
 
@@ -34,6 +34,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const dataMode = getGymcrmDataMode();
+  const navMode = getGymcrmNavMode();
 
   return (
     <html lang="es">
@@ -53,21 +54,8 @@ export default function RootLayout({
                   <span className="hidden sm:inline">GymCRM</span>
                 </span>
               </div>
-              <nav className="flex items-center gap-2">
-                <div className="hidden lg:flex items-center gap-3">
-                  <Link href="/dashboard" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Premium</Link>
-                  <Link href="/dashboard/classes" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Clases</Link>
-                  <Link href="/admin" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Admin</Link>
-                  <Link href="/admin/classes" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Gestión Clases</Link>
-                  <Link href="/admin/builder" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Builder</Link>
-                  <Link href="/admin/comunidad" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Comunidad</Link>
-                  <Link href="/admin/nutricion" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Nutrición</Link>
-                  <Link href="/cliente" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Portal Cliente</Link>
-                </div>
-                <div className="flex items-center gap-2 lg:hidden">
-                  <Link href="/dashboard" className="text-xs font-medium text-gray-300 hover:text-white transition-colors">Dashboard</Link>
-                  <Link href="/admin" className="text-xs font-medium text-gray-300 hover:text-white transition-colors">Admin</Link>
-                </div>
+              <nav className="relative flex items-center gap-2">
+                <MainNavigation navMode={navMode} />
                 <ExperienceControls />
                 <OpenRoleSelector mode={dataMode} />
                 <ThemeSwitcher />

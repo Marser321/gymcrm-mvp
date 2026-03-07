@@ -5,10 +5,14 @@ import Link from 'next/link';
 import { CreditCard, Dumbbell, Filter, Plus, Search, UserX, Users, X } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
+import { RoadmapModal } from '@/components/gymcrm/RoadmapModal';
 import { MemberModal } from '@/components/crm/MemberModal';
 import { Member, MemberTable } from '@/components/crm/MemberTable';
 import { ActionCard, EmptyState, MetricCard, StatusPill, StickyActionBar } from '@/components/ui/premium';
+import { useOpenSession } from '@/hooks/useOpenSession';
 import { apiGet, apiMutation } from '@/lib/gymcrm/client-api';
+import { getActionAvailability, type ActionAvailability, type PortalAccessIntent } from '@/lib/gymcrm/demo-ui';
 import { toUserErrorMessage } from '@/lib/gymcrm/error';
 
 type ClienteResponse = {
@@ -68,8 +72,15 @@ const toClientePayload = (memberData: Partial<Member>) => ({
 });
 
 type ModalMode = 'create' | 'edit' | 'view';
+const ADMIN_PORTAL_INTENT: PortalAccessIntent = {
+  route: '/admin',
+  requiredRoles: ['admin', 'recepcion', 'entrenador', 'nutricionista'],
+  recommendedRole: 'admin',
+  ctaLabel: 'Entrar como staff demo',
+};
 
 export default function AdminPage() {
+  const { role: openRole, ready: sessionReady } = useOpenSession();
   const [activeTab, setActiveTab] = useState<'members' | 'classes' | 'payments'>('members');
   const [members, setMembers] = useState<Member[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,6 +98,8 @@ export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('create');
   const [activeMember, setActiveMember] = useState<Member | null>(null);
+  const [roadmapAction, setRoadmapAction] = useState<ActionAvailability | null>(null);
+  const [roadmapOpen, setRoadmapOpen] = useState(false);
 
   const loadAdminData = useCallback(async () => {
     setIsLoading(true);
@@ -94,9 +107,10 @@ export default function AdminPage() {
 
     try {
       const me = await apiGet<MeResponse>('/api/gymcrm/me');
-      setIsReady(me.data.ready && me.data.role?.rol !== 'cliente');
+      const canAccess = Boolean(me.data.ready && openRole !== 'cliente');
+      setIsReady(canAccess);
 
-      if (!me.data.ready || me.data.role?.rol === 'cliente') {
+      if (!canAccess) {
         setMembers([]);
         return;
       }
@@ -114,11 +128,12 @@ export default function AdminPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [openRole]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadAdminData();
-  }, [loadAdminData]);
+  }, [loadAdminData, sessionReady, openRole]);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -232,7 +247,20 @@ export default function AdminPage() {
     );
   }
 
+  if (openRole === 'cliente') {
+    return (
+      <PortalAccessAssistant
+        intent={ADMIN_PORTAL_INTENT}
+        currentRole={openRole}
+        title="Consola admin en modo demo"
+        description="Este portal requiere rol staff. Cambia de rol y recorre operación, clases, comunidad y nutrición."
+        error={error}
+      />
+    );
+  }
+
   if (!isReady) {
+
     return (
       <div className="relative min-h-screen bg-background overflow-hidden selection:bg-indigo-500/30 flex flex-col">
         <NoiseTexture />
@@ -400,6 +428,22 @@ export default function AdminPage() {
                 <EmptyState
                   title="Cobros y membresías"
                   description="Registra y ajusta pagos desde la sección de clientes o vía API interna /api/gymcrm/pagos."
+                  action={
+                    <button
+                      type="button"
+                      data-testid="admin-payments-roadmap"
+                      onClick={() => {
+                        const action = getActionAvailability('admin_payments_center');
+                        setRoadmapAction(action);
+                        if (!action.implemented) {
+                          setRoadmapOpen(true);
+                        }
+                      }}
+                      className="inline-flex rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15"
+                    >
+                      Ver roadmap de cobros
+                    </button>
+                  }
                 />
               </div>
             )}
@@ -439,6 +483,11 @@ export default function AdminPage() {
         onSave={handleSaveMember}
         member={activeMember}
         readOnly={modalMode === 'view'}
+      />
+      <RoadmapModal
+        action={roadmapAction}
+        open={roadmapOpen}
+        onClose={() => setRoadmapOpen(false)}
       />
     </div>
   );

@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Layers, PlayCircle, Plus, PauseCircle, Users2 } from 'lucide-react';
+import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { useOpenSession } from '@/hooks/useOpenSession';
 import { useUIExperience } from '@/hooks/useUIExperience';
 import { apiGet, apiMutation } from '@/lib/gymcrm/client-api';
+import type { PortalAccessIntent } from '@/lib/gymcrm/demo-ui';
 import { toUserErrorMessage } from '@/lib/gymcrm/error';
 
 type ListResponse<T> = { data: T[]; count?: number };
@@ -75,8 +78,15 @@ const toIso = (localDateTime: string): string => {
   if (!localDateTime) return '';
   return new Date(localDateTime).toISOString();
 };
+const BUILDER_PORTAL_INTENT: PortalAccessIntent = {
+  route: '/admin/builder',
+  requiredRoles: ['admin', 'recepcion', 'entrenador', 'nutricionista'],
+  recommendedRole: 'admin',
+  ctaLabel: 'Entrar como staff demo',
+};
 
 export default function AdminBuilderPage() {
+  const { role: openRole, ready: sessionReady } = useOpenSession();
   const { fireHaptic } = useUIExperience();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -123,7 +133,7 @@ export default function AdminBuilderPage() {
 
     try {
       const me = await apiGet<MeResponse>('/api/gymcrm/me');
-      const canAccess = Boolean(me.data.ready && me.data.role?.rol !== 'cliente');
+      const canAccess = Boolean(me.data.ready && openRole !== 'cliente');
       setIsReady(canAccess);
 
       if (!canAccess) {
@@ -167,11 +177,12 @@ export default function AdminBuilderPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [openRole]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, sessionReady, openRole]);
 
   const createService = async () => {
     try {
@@ -292,7 +303,20 @@ export default function AdminBuilderPage() {
     return <div className="flex items-center justify-center min-h-[70vh] text-gray-400">Cargando builder...</div>;
   }
 
+  if (openRole === 'cliente') {
+    return (
+      <PortalAccessAssistant
+        intent={BUILDER_PORTAL_INTENT}
+        currentRole={openRole}
+        title="Builder admin en modo demo"
+        description="Este módulo se prueba con rol staff. Cambia el rol para crear servicios, sesiones y gestionar reservas."
+        error={error}
+      />
+    );
+  }
+
   if (!isReady) {
+
     return (
       <div className="relative min-h-screen bg-background overflow-hidden">
         <NoiseTexture />

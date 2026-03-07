@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   applyCookieHeader,
+  applyOpenRoleCookie,
   ensureQaClient,
   hasStaffCookie,
   localDateTime,
@@ -80,6 +81,15 @@ test.describe('Staff CRM critical routes', () => {
       await page.getByRole('button', { name: 'Cerrar' }).click();
       await expect(page.getByText('Detalle de Cliente')).toHaveCount(0);
     }
+  });
+
+  test('admin: tab de cobros abre modal de roadmap en lugar de acción muerta', async ({ page }) => {
+    await page.goto('/admin');
+    await page.getByTestId('admin-tab-payments').click();
+    await page.getByTestId('admin-payments-roadmap').click();
+    await expect(page.getByTestId('roadmap-close')).toBeVisible();
+    await page.getByTestId('roadmap-close').click();
+    await expect(page.getByTestId('roadmap-close')).toHaveCount(0);
   });
 
   test('admin/classes: editar clase abre modal y persiste', async ({ page }) => {
@@ -189,5 +199,37 @@ test.describe('Staff CRM critical routes', () => {
     );
     await page.getByTestId('nutricion-create-medicion').click();
     await expect((await medResponse).ok()).toBeTruthy();
+  });
+
+  test('portales admin con rol cliente muestran CTA de cambio y habilitan acceso demo', async ({ page, context }) => {
+    const checks = [
+      { path: '/admin/builder', expectedTestId: 'builder-service-name' },
+      { path: '/admin/comunidad', expectedTestId: 'comunidad-points-reason' },
+      { path: '/admin/nutricion', expectedTestId: 'nutricion-consent-cliente' },
+    ];
+
+    for (const item of checks) {
+      await applyOpenRoleCookie(context, 'cliente');
+      await page.goto(item.path);
+      await expect(page.getByTestId('portal-access-switch-role')).toBeVisible();
+      await page.getByTestId('portal-access-switch-role').click();
+      await expect(page).toHaveURL(new RegExp(item.path.replace('/', '\\/')));
+      await expect(page.getByTestId('open-role-selector')).not.toHaveValue('cliente');
+      await expect(page.getByTestId(item.expectedTestId), `${item.path} debe quedar operativo tras cambio de rol`).toBeVisible({
+        timeout: 30000,
+      });
+    }
+  });
+
+  test('navegación demo_all mobile muestra todos los portales', async ({ page, context }) => {
+    await applyOpenRoleCookie(context, 'admin');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('mobile-nav-toggle').click();
+    const labels = ['Dashboard', 'Clases', 'Consola', 'Admin Clases', 'Builder', 'Comunidad', 'Nutricion', 'Portal Cliente'];
+    for (const label of labels) {
+      await expect(page.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
   });
 });

@@ -6,15 +6,15 @@ import { CrystalCard } from './crystal-card';
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-[calc(100dvh-4rem)] md:min-h-[calc(100dvh-4.5rem)] w-full flex items-start justify-center pt-10 md:pt-14 pb-8 md:pb-12 overflow-hidden">
+    <section className="relative min-h-[calc(100svh-72px)] md:min-h-[calc(100svh-80px)] w-full flex items-start justify-center pt-6 md:pt-8 pb-8 md:pb-10 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_15%,rgba(34,197,94,0.18),transparent_44%)]" />
       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-8 items-start lg:items-center">
         <div className="flex flex-col items-start text-left">
-          <div className="inline-flex items-center justify-center px-5 py-2 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-md mb-8">
+          <div className="inline-flex items-center justify-center px-5 py-2 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-md mb-6">
             <span className="text-sm font-semibold text-primary">La Nueva Era del Fitness</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-foreground mb-5 leading-[1.05]">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight text-foreground mb-5 leading-[1.05]">
             Transforma tu
             <br />
             <span className="text-glow text-primary">Gimnasio</span>
@@ -22,7 +22,7 @@ export function HeroSection() {
             en un Imperio.
           </h1>
 
-          <p className="text-lg md:text-xl text-muted-foreground mr-auto max-w-xl mb-8 leading-relaxed font-light">
+          <p className="text-lg md:text-xl text-muted-foreground mr-auto max-w-xl mb-7 leading-relaxed font-light">
             Ofrece a tus clientes una experiencia élite con tu propia App ultra-premium. Integraciones perfectas,
             seguimiento visual y máxima retención.
           </p>
@@ -52,7 +52,7 @@ export function HeroSection() {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+          transition={{ duration: 0.8, ease: 'easeOut', delay: 0 }}
           className="relative w-full h-[420px] sm:h-[500px] lg:h-[580px] flex items-center justify-center mt-2 lg:mt-0"
         >
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] lg:w-[450px] lg:h-[450px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />

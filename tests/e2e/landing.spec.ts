@@ -4,6 +4,7 @@ import { expectNoBrokenCriticalResources } from './helpers';
 test.describe('Landing Luxury Sport Tech', () => {
   test('CTAs principales tienen destino funcional', async ({ page }) => {
     await page.goto('/');
+    await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
 
     await expect(page.locator('header')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1, name: /Transforma tu/i })).toBeInViewport();
@@ -19,7 +20,7 @@ test.describe('Landing Luxury Sport Tech', () => {
     await expect(ctaVipDashboard).toBeVisible();
     await expect(ctaVipWhatsapp).toBeVisible();
     await expect(ctaFloatingWhatsapp).toBeVisible();
-    await expect(ctaStartFree).toBeInViewport();
+    await expect(ctaStartFree).toBeInViewport({ ratio: 0.2 });
 
     await expect(ctaStartFree).toHaveAttribute('href', '/dashboard');
 

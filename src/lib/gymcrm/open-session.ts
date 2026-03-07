@@ -2,6 +2,7 @@ import { GYM_ROLES, type GymRole } from '@/lib/gymcrm/types';
 
 export type OpenRole = GymRole;
 export type DataMode = 'demo' | 'live';
+export type NavMode = 'demo_all' | 'role_scoped';
 
 export const OPEN_ROLE_COOKIE = 'gymcrm_open_role';
 export const OPEN_ROLE_STORAGE_KEY = 'gymcrm_open_role';
@@ -41,6 +42,10 @@ export const getGymcrmDataMode = (): DataMode => {
   return process.env.GYMCRM_DATA_MODE === 'live' ? 'live' : 'demo';
 };
 
+export const getGymcrmNavMode = (): NavMode => {
+  return process.env.NEXT_PUBLIC_GYMCRM_NAV_MODE === 'role_scoped' ? 'role_scoped' : 'demo_all';
+};
+
 export const readOpenRoleFromCookieHeader = (cookieHeader: string | null | undefined): OpenRole => {
   const cookies = parseCookieHeader(cookieHeader ?? null);
   return normalizeOpenRole(cookies[OPEN_ROLE_COOKIE]);
@@ -49,4 +54,3 @@ export const readOpenRoleFromCookieHeader = (cookieHeader: string | null | undef
 export const readOpenRoleFromRequest = (request: Request): OpenRole => {
   return readOpenRoleFromCookieHeader(request.headers.get('cookie'));
 };
-

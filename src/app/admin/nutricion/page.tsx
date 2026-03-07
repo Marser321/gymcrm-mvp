@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, HeartPulse, Plus, Scale, ShieldCheck } from 'lucide-react';
+import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { useOpenSession } from '@/hooks/useOpenSession';
 import { useUIExperience } from '@/hooks/useUIExperience';
 import { apiGet, apiMutation } from '@/lib/gymcrm/client-api';
+import type { PortalAccessIntent } from '@/lib/gymcrm/demo-ui';
 import { toUserErrorMessage } from '@/lib/gymcrm/error';
 
 type ListResponse<T> = { data: T[]; count?: number };
@@ -57,8 +60,15 @@ type Medicion = {
 
 const DEFAULT_CONSENT_TEXT =
   'Acepto el seguimiento nutricional no clínico del centro, con fines educativos y de mejora de hábitos saludables.';
+const NUTRICION_PORTAL_INTENT: PortalAccessIntent = {
+  route: '/admin/nutricion',
+  requiredRoles: ['admin', 'nutricionista'],
+  recommendedRole: 'nutricionista',
+  ctaLabel: 'Entrar como nutricionista demo',
+};
 
 export default function AdminNutricionPage() {
+  const { role: openRole, ready: sessionReady } = useOpenSession();
   const { fireHaptic } = useUIExperience();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -117,8 +127,11 @@ export default function AdminNutricionPage() {
 
     try {
       const me = await apiGet<MeResponse>('/api/gymcrm/me');
-      const role = me.data.role?.rol ?? '';
-      const canAccess = Boolean(me.data.ready && role !== 'cliente' && (role === 'admin' || role === 'nutricionista'));
+      const canAccess = Boolean(
+        me.data.ready &&
+          openRole !== 'cliente' &&
+          (openRole === 'admin' || openRole === 'nutricionista')
+      );
       setIsReady(canAccess);
 
       if (!canAccess) {
@@ -162,11 +175,12 @@ export default function AdminNutricionPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [consentClienteId, medClienteId, planClienteId]);
+  }, [consentClienteId, medClienteId, openRole, planClienteId]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, sessionReady, openRole]);
 
   useEffect(() => {
     if (!medClienteId) return;
@@ -286,7 +300,20 @@ export default function AdminNutricionPage() {
     return <div className="flex items-center justify-center min-h-[70vh] text-gray-400">Cargando nutrición...</div>;
   }
 
+  if (openRole === 'cliente') {
+    return (
+      <PortalAccessAssistant
+        intent={NUTRICION_PORTAL_INTENT}
+        currentRole={openRole}
+        title="Nutrición admin en modo demo"
+        description="Este módulo requiere rol admin o nutricionista. Cambia de rol para probar consentimientos, planes y seguimiento."
+        error={error}
+      />
+    );
+  }
+
   if (!isReady) {
+
     return (
       <div className="relative min-h-screen bg-background overflow-hidden">
         <NoiseTexture />
