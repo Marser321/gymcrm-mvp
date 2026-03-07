@@ -17,6 +17,7 @@ const getClienteIdForUser = async (authCtx: Extract<Awaited<ReturnType<typeof ge
     .select('id')
     .eq('gimnasio_id', authCtx.context.gimnasioId)
     .eq('auth_user_id', authCtx.authUserId)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 

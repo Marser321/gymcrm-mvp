@@ -147,23 +147,19 @@ test.describe('Cliente portal critical flows', () => {
     const reservaId = reservePayload?.data?.id;
     expect(reservaId).toBeTruthy();
 
-    let cancelBtn = page.getByTestId(`cliente-cancelar-reserva-${reservaId}`);
-    let cancelVisible = await cancelBtn.isVisible({ timeout: 3000 }).catch(() => false);
+    const cancelBtn = page.getByTestId(`cliente-cancelar-reserva-${reservaId}`);
+    let cancelVisible = await cancelBtn.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (!cancelVisible) {
       await page.reload();
-      cancelBtn = page.getByTestId(`cliente-cancelar-reserva-${reservaId}`);
-      cancelVisible = await cancelBtn.isVisible({ timeout: 5000 }).catch(() => false);
+      cancelVisible = await cancelBtn.isVisible({ timeout: 15000 }).catch(() => false);
     }
 
-    if (!cancelVisible) {
-      cancelBtn = page.locator('[data-testid^="cliente-cancelar-reserva-"]').first();
-    }
-
-    await expect(cancelBtn).toBeVisible();
+    await expect(cancelBtn, 'Debe existir botón de cancelar para la reserva recién creada').toBeVisible();
 
     const cancelResponse = page.waitForResponse(
-      (resp) => resp.url().includes('/api/gymcrm/builder/reservas/') && resp.request().method() === 'PATCH'
+      (resp) =>
+        resp.url().includes(`/api/gymcrm/builder/reservas/${reservaId}`) && resp.request().method() === 'PATCH'
     );
     await cancelBtn.click();
     expect((await cancelResponse).ok(), 'Cancelación dinámica cliente debe responder OK').toBeTruthy();

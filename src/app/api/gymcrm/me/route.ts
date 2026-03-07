@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     .select('id, gimnasio_id, nombres, apellidos, email, codigo_qr, estado')
     .eq('gimnasio_id', authCtx.context.gimnasioId)
     .eq('auth_user_id', authCtx.authUserId)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -39,4 +40,3 @@ export async function GET(request: Request) {
     sourceMode: getGymcrmDataMode(),
   });
 }
-
