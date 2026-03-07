@@ -388,6 +388,36 @@ const runSmoke = async () => {
     if (!payload?.data?.id) throw new Error('missing consentimiento id');
   });
 
+  await run('nutricion.close_existing_active_plans', async () => {
+    const listPayload = await expectOk(
+      'nutricion.list_active_plans',
+      requestJson({
+        method: 'GET',
+        path: `/api/gymcrm/nutricion/planes?clienteId=${clientPrimary}&estado=activo&pageSize=50`,
+        cookie: staffCookie,
+      })
+    );
+
+    const activePlans = Array.isArray(listPayload?.data) ? listPayload.data : [];
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const plan of activePlans) {
+      if (!plan?.id) continue;
+      await expectOk(
+        `nutricion.close_active_plan.${plan.id}`,
+        requestJson({
+          method: 'PATCH',
+          path: `/api/gymcrm/nutricion/planes/${plan.id}`,
+          cookie: staffCookie,
+          body: {
+            estado: 'sustituido',
+            activo_hasta: today,
+          },
+        })
+      );
+    }
+  });
+
   await run('nutricion.create_plan_activo', async () => {
     const payload = await expectOk(
       'nutricion.create_plan_activo',
