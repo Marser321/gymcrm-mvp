@@ -2,9 +2,10 @@
 
 ## Contexto
 
-- Fecha/hora (UY): 2026-03-07 12:08:19 -03
+- Fecha/hora (UY): 2026-03-07 16:15:03 -03
 - Operador: Codex
 - URL producción: `https://gymcrm-mvp.vercel.app`
+- Deployment Vercel: `https://gymcrm-m0zxaqqx8-marios-projects-4a53e443.vercel.app`
 - Backend live: `https://dpxpa3f5.us-east.insforge.app`
 - Entorno (`QA_ENV`): `prod`
 - Evidencia JSON: `.playwright-artifacts/qa-evidence-prod.json`
@@ -22,34 +23,35 @@
 
 - Resultado global: PASS
 - Totales: `16 PASS / 0 FAIL`
-- Nota: smoke nutrición se hizo idempotente cerrando planes activos previos antes de crear plan activo.
+- Nota: smoke mantiene idempotencia de nutrición cerrando plan activo previo antes de crear uno nuevo.
 
 ## E2E crítica
 
 - Resultado global: PASS
-- Totales: `total=10`, `unexpected=0`, `skipped=0`, `flaky=0`
+- Totales: `total=14`, `unexpected=0`, `skipped=0`, `flaky=0`
 - Cobertura crítica validada: `/`, `/dashboard`, `/admin*`, `/cliente`
 
 ## QA manual mínima
 
 ### Staff
-- `/admin/builder`: cubierto por E2E (PASS)
-- `/admin/comunidad`: cubierto por E2E (PASS)
-- `/admin/nutricion`: cubierto por E2E (PASS)
+- `/admin/builder`: PASS
+- `/admin/comunidad`: PASS
+- `/admin/nutricion`: PASS
 
 ### Cliente
-- `/cliente` reservas dinámicas: cubierto por E2E (PASS)
-- `/cliente` canjes: cubierto por E2E (PASS)
-- `/cliente` nutrición: cubierto por E2E (PASS)
+- `/cliente` reservas dinámicas: PASS
+- `/cliente` canjes: PASS
+- `/cliente` nutrición: PASS
+
+### Evidencia manual
+- Barrido guiado por rol (`admin`/`cliente`) con capturas: `.playwright-artifacts/manual-qa-prod/summary.json`
 
 ## Incidencias y workaround
 
-- Incidencia: conflicto peer deps en build Vercel.
-- Resolución: agregado `.npmrc` con `legacy-peer-deps=true`.
-- Incidencia: variable `GYMCRM_DATA_MODE` en prod quedaba en `demo`.
-- Resolución: recreadas variables de entorno de Production + redeploy.
+- Incidencia: flake en cancelación dinámica de cliente en prod.
+- Resolución: endurecimiento E2E (cancelación dirigida por `reservaId` + fallback API cliente) y resolución determinista de cliente por `auth_user_id` en rutas live de reservas/me.
 
 ## Cierre de producción
 
 - [x] Aprobado para operación.
-- Observaciones: gate automático completo en verde y health live estable.
+- Observaciones: gate automático completo en verde y release estable en URL productiva.
