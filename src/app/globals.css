@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 215 20.2% 65.1%;
+
+    /* Luxury Sport Tech - default accent */
+    --primary: 142 71% 45%;
+    --primary-foreground: 144 100% 11%;
+    --theme-glow: rgba(34, 197, 94, 0.4);
+    --focus-ring: rgba(34, 197, 94, 0.65);
+
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 142 71% 45%;
+
+    --radius: 1.5rem;
+
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  [data-theme='graphite'],
+  [data-theme='orange'] {
+    --primary: 24 95% 53%;
+    /* #f97316 */
+    --primary-foreground: 20 100% 10%;
+    --theme-glow: rgba(249, 115, 22, 0.4);
+    --focus-ring: rgba(249, 115, 22, 0.65);
+    --ring: 24 95% 53%;
+  }
+
+  [data-theme='ocean'],
+  [data-theme='blue'] {
+    --primary: 199 89% 48%;
+    /* #0ea5e9 */
+    --primary-foreground: 200 100% 10%;
+    --theme-glow: rgba(14, 165, 233, 0.4);
+    --focus-ring: rgba(14, 165, 233, 0.65);
+    --ring: 199 89% 48%;
+  }
+
+  [data-theme='sand'],
+  [data-theme='gold'] {
+    --primary: 43 74% 49%;
+    /* #eab308 */
+    --primary-foreground: 43 100% 10%;
+    --theme-glow: rgba(234, 179, 8, 0.4);
+    --focus-ring: rgba(234, 179, 8, 0.65);
+    --ring: 43 74% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased transition-colors duration-700;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Base Utility Classes for Cinematic Effects */
+@layer utilities {
+  .glass {
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] shadow-glass;
+  }
+
+  .glass-card {
+    @apply bg-[#151515]/60 backdrop-blur-2xl border border-white/[0.05] shadow-glass-card;
+  }
+
+  .glass-panel {
+    @apply bg-gradient-to-br from-white/[0.08] to-transparent backdrop-blur-2xl border border-white/[0.05] shadow-2xl;
+  }
+
+  .glass-hover {
+    @apply hover:bg-white/[0.06] hover:border-white/[0.15] hover:shadow-glass-hover transition-all duration-300 ease-out;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px var(--theme-glow);
+  }
+
+  .bg-glow {
+    box-shadow: 0 0 40px var(--theme-glow);
+  }
+
+  .noise-bg {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opactity='0.05'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .direction-reverse {
+    animation-direction: reverse;
+  }
+}

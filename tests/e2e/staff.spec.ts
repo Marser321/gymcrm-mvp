@@ -1,0 +1,193 @@
+import { expect, test } from '@playwright/test';
+import {
+  applyCookieHeader,
+  ensureQaClient,
+  hasStaffCookie,
+  localDateTime,
+  staffCookie,
+} from './helpers';
+
+const seedEnabled = process.env.E2E_SEED_ENABLED === 'true';
+
+test.describe('Staff CRM critical routes', () => {
+  test.skip(!seedEnabled && !hasStaffCookie, 'Define E2E_STAFF_COOKIE para ejecutar rutas protegidas de staff.');
+
+  test.beforeAll(() => {
+    if (seedEnabled && !hasStaffCookie) {
+      throw new Error('E2E_SEED_ENABLED=true exige staffCookie efectivo. Revisa global-setup y credenciales E2E.');
+    }
+  });
+
+  test.beforeEach(async ({ context }) => {
+    await applyCookieHeader(context, staffCookie);
+  });
+
+  test('rutas staff críticas cargan controles operativos reales', async ({ page }) => {
+    const checks = [
+      {
+        path: '/dashboard',
+        testIds: ['go-admin-builder', 'go-admin-comunidad', 'go-admin-nutricion'],
+      },
+      {
+        path: '/admin',
+        testIds: ['admin-filter-toggle', 'admin-new-member', 'admin-tab-members'],
+      },
+      {
+        path: '/admin/classes',
+        testIds: ['admin-classes-tab-types', 'admin-class-name', 'admin-create-class'],
+      },
+      {
+        path: '/admin/builder',
+        testIds: ['builder-service-name', 'builder-create-service', 'builder-session-title', 'builder-create-session'],
+      },
+      {
+        path: '/admin/comunidad',
+        testIds: ['comunidad-points-reason', 'comunidad-assign-points', 'comunidad-premio-nombre', 'comunidad-create-premio'],
+      },
+      {
+        path: '/admin/nutricion',
+        testIds: [
+          'nutricion-consent-cliente',
+          'nutricion-create-consent',
+          'nutricion-plan-cliente',
+          'nutricion-create-plan',
+          'nutricion-create-medicion',
+        ],
+      },
+    ];
+
+    for (const item of checks) {
+      await page.goto(item.path);
+      await expect(page.locator('body')).not.toContainText('Debes iniciar sesión');
+      for (const testId of item.testIds) {
+        await expect(page.getByTestId(testId), `${item.path} debe mostrar ${testId}`).toBeVisible();
+      }
+    }
+  });
+
+  test('admin: filtros y acciones de fila funcionan', async ({ page }) => {
+    await page.goto('/admin');
+
+    await page.getByTestId('admin-filter-toggle').click();
+    await expect(page.getByText('Estado')).toBeVisible();
+
+    const firstView = page.locator('[data-testid^="member-view-"]').first();
+    const hasRows = (await page.locator('[data-testid^="member-view-"]').count()) > 0;
+
+    if (hasRows) {
+      await firstView.click();
+      await expect(page.getByText('Detalle de Cliente')).toBeVisible();
+      await page.getByRole('button', { name: 'Cerrar' }).click();
+      await expect(page.getByText('Detalle de Cliente')).toHaveCount(0);
+    }
+  });
+
+  test('admin/classes: editar clase abre modal y persiste', async ({ page }) => {
+    await page.goto('/admin/classes');
+    await page.getByTestId('admin-classes-tab-types').click();
+
+    if ((await page.locator('[data-testid^="edit-class-"]').count()) === 0) {
+      await page.getByTestId('admin-class-name').fill(`Clase QA ${Date.now()}`);
+      await page.getByTestId('admin-create-class').click();
+      await expect(page.locator('[data-testid^="edit-class-"]').first()).toBeVisible();
+    }
+
+    const firstEdit = page.locator('[data-testid^="edit-class-"]').first();
+    await firstEdit.click();
+
+    const nameInput = page.getByTestId('admin-edit-class-name');
+    await expect(nameInput).toBeVisible();
+    const original = await nameInput.inputValue();
+    await nameInput.fill(`${original} QA`);
+
+    await page.getByTestId('admin-save-class-edit').click();
+    await expect(page.getByText('Editar clase')).toHaveCount(0);
+  });
+
+  test('admin/builder: crear servicio y sesión desde plantilla', async ({ page }) => {
+    await page.goto('/admin/builder');
+
+    const serviceName = `Servicio QA ${Date.now()}`;
+    await page.getByTestId('builder-service-name').fill(serviceName);
+    const createServiceResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/gymcrm/builder/servicios') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('builder-create-service').click();
+    const serviceApiResponse = await createServiceResponse;
+    expect(serviceApiResponse.ok(), 'Creación de servicio builder debe responder OK').toBeTruthy();
+
+    let createdServiceId = '';
+    try {
+      const payload = (await serviceApiResponse.json()) as { data?: { servicio?: { id?: string } } };
+      createdServiceId = payload?.data?.servicio?.id ?? '';
+    } catch {
+      createdServiceId = '';
+    }
+
+    if (createdServiceId) {
+      await page.getByTestId('builder-session-service').selectOption(createdServiceId);
+    }
+    await expect(page.locator('[data-testid^=\"builder-publicar-\"]').first()).toBeVisible();
+
+    const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+    await page.getByTestId('builder-session-title').fill(`Sesion QA ${Date.now()}`);
+    await page.getByTestId('builder-session-start').fill(localDateTime(start));
+    await page.getByTestId('builder-session-end').fill(localDateTime(end));
+    await page.getByTestId('builder-create-session').click();
+
+    await expect(page.getByTestId('builder-session-title')).toHaveValue('');
+  });
+
+  test('admin/comunidad + admin/nutricion: flujos B3/B2 operativos', async ({ page, request }) => {
+    const clienteId = await ensureQaClient(request);
+
+    await page.goto('/admin/comunidad');
+    await page.getByTestId('comunidad-points-cliente').selectOption(clienteId);
+    await page.getByTestId('comunidad-points-value').fill('35');
+    await page.getByTestId('comunidad-points-reason').fill(`QA puntos ${Date.now()}`);
+
+    const pointsResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/gymcrm/comunidad/puntos') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('comunidad-assign-points').click();
+    await expect((await pointsResponse).ok()).toBeTruthy();
+
+    await page.getByTestId('comunidad-premio-nombre').fill(`Premio QA ${Date.now()}`);
+    const premioResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/gymcrm/comunidad/premios') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('comunidad-create-premio').click();
+    await expect((await premioResponse).ok()).toBeTruthy();
+
+    await page.goto('/admin/nutricion');
+    await page.getByTestId('nutricion-consent-cliente').selectOption(clienteId);
+    const consentResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/gymcrm/nutricion/consentimientos') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('nutricion-create-consent').click();
+    await expect((await consentResponse).ok()).toBeTruthy();
+
+    await page.getByTestId('nutricion-plan-cliente').selectOption(clienteId);
+    await page.getByTestId('nutricion-plan-estado').selectOption('activo');
+    const planResponse = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/nutricion/planes') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('nutricion-create-plan').click();
+    await expect((await planResponse).ok()).toBeTruthy();
+
+    await page.getByTestId('nutricion-med-cliente').selectOption(clienteId);
+    await page.getByTestId('nutricion-med-peso').fill('75.2');
+    await page.getByTestId('nutricion-med-adherencia').fill('82');
+    const medResponse = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/nutricion/mediciones') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('nutricion-create-medicion').click();
+    await expect((await medResponse).ok()).toBeTruthy();
+  });
+});

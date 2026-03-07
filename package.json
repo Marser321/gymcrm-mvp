@@ -1,0 +1,53 @@
+{
+  "name": "gyms-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "check:appledouble": "node scripts/check-appledouble.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:seed": "E2E_SEED_ENABLED=true playwright test",
+    "qa:verify": "npm run check:appledouble && npm run lint && npm run test && npm run build",
+    "smoke:gymcrm": "node scripts/smoke-gymcrm.mjs",
+    "smoke:gymcrm:report": "SMOKE_REPORT_PATH=.playwright-artifacts/smoke-report.json node scripts/smoke-gymcrm.mjs",
+    "qa:evidence": "node scripts/collect-qa-evidence.mjs",
+    "qa:evidence:staging": "QA_ENV=staging QA_EVIDENCE_PATH=.playwright-artifacts/qa-evidence-staging.json SMOKE_REPORT_PATH=.playwright-artifacts/smoke-report-staging.json QA_ENFORCE_NO_CRITICAL_SKIPS=true node scripts/collect-qa-evidence.mjs",
+    "qa:evidence:prod": "QA_ENV=prod QA_EVIDENCE_PATH=.playwright-artifacts/qa-evidence-prod.json SMOKE_REPORT_PATH=.playwright-artifacts/smoke-report-prod.json QA_ENFORCE_NO_CRITICAL_SKIPS=true node scripts/collect-qa-evidence.mjs",
+    "qa:gate:mvp": "QA_ENV=staging QA_E2E_PROFILE=critical_desktop E2E_OPEN_SESSION=true GYMCRM_DATA_MODE=demo node scripts/run-qa-gate.mjs",
+    "qa:gate:staging": "QA_ENV=staging node scripts/run-qa-gate.mjs",
+    "qa:gate:prod": "QA_ENV=prod node scripts/run-qa-gate.mjs"
+  },
+  "dependencies": {
+    "@insforge/nextjs": "latest",
+    "@insforge/sdk": "latest",
+    "@studio-freight/react-lenis": "^0.0.47",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.35.0",
+    "lenis": "^1.3.18",
+    "lucide-react": "^0.577.0",
+    "motion": "^12.35.0",
+    "next": "^15.5.7",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.21.0",
+    "eslint-config-next": "^15.2.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
