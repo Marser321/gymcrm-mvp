@@ -9,6 +9,9 @@ import { ExperienceControls } from '@/components/ui/ExperienceControls';
 import { PWARegister } from '@/components/gymcrm/PWARegister';
 import { OpenRoleSelector } from '@/components/gymcrm/OpenRoleSelector';
 import { MainNavigation } from '@/components/gymcrm/MainNavigation';
+import { DemoOnboardingTour } from '@/components/gymcrm/DemoOnboardingTour';
+import { GymcrmAnalyticsProvider } from '@/components/analytics/GymcrmAnalyticsProvider';
+import { AnalyticsConsentBanner } from '@/components/analytics/AnalyticsConsentBanner';
 import { getGymcrmDataMode, getGymcrmNavMode } from '@/lib/gymcrm/open-session';
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' });
@@ -45,23 +48,27 @@ export default function RootLayout({
         <InsforgeProvider>
           <PWARegister />
           <LenisProvider>
-            <header className="flex items-center justify-between px-3 py-3 md:px-6 md:py-4 border-b border-white/5 bg-background/50 backdrop-blur-md sticky top-0 z-50">
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 text-primary-foreground">
-                    💪
-                  </div>
-                  <span className="hidden sm:inline">GymCRM</span>
-                </span>
-              </div>
-              <nav className="relative flex items-center gap-2">
-                <MainNavigation navMode={navMode} />
-                <ExperienceControls />
-                <OpenRoleSelector mode={dataMode} />
-                <ThemeSwitcher />
-              </nav>
-            </header>
-            <main>{children}</main>
+            <GymcrmAnalyticsProvider>
+              <header className="flex items-center justify-between px-3 py-3 md:px-6 md:py-4 border-b border-white/5 bg-background/50 backdrop-blur-md sticky top-0 z-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 text-primary-foreground">
+                      💪
+                    </div>
+                    <span className="hidden sm:inline">GymCRM</span>
+                  </span>
+                </div>
+                <nav className="relative flex items-center gap-2">
+                  <MainNavigation navMode={navMode} />
+                  <ExperienceControls />
+                  <DemoOnboardingTour />
+                  <OpenRoleSelector mode={dataMode} />
+                  <ThemeSwitcher />
+                </nav>
+              </header>
+              <main>{children}</main>
+              <AnalyticsConsentBanner />
+            </GymcrmAnalyticsProvider>
           </LenisProvider>
         </InsforgeProvider>
       </body>

@@ -190,6 +190,23 @@ export async function GET() {
         )
       : 0;
 
+  const upcomingRows = upcomingSchedules.data ?? [];
+  const upcomingClassIds = Array.from(new Set(upcomingRows.map((row) => row.clase_base_id)));
+  let classNameMap = new Map<string, string>();
+  if (upcomingClassIds.length > 0) {
+    const classNamesResult = await authCtx.client.database
+      .from(gymTable('clases_base'))
+      .select('id, nombre')
+      .eq('gimnasio_id', authCtx.context.gimnasioId)
+      .in('id', upcomingClassIds);
+
+    if (classNamesResult.error) {
+      return fail(`No se pudieron cargar nombres de clases para dashboard: ${classNamesResult.error.message}`, 500);
+    }
+
+    classNameMap = new Map((classNamesResult.data ?? []).map((row) => [row.id, row.nombre]));
+  }
+
   return ok({
     kpis: {
       totalClientesActivos: clientesActivos.count ?? 0,
@@ -204,7 +221,10 @@ export async function GET() {
     },
     recientes: {
       clientes: recentClientes.data ?? [],
-      horarios: upcomingSchedules.data ?? [],
+      horarios: upcomingRows.map((row) => ({
+        ...row,
+        clase_nombre: classNameMap.get(row.clase_base_id) ?? null,
+      })),
     },
   });
 }

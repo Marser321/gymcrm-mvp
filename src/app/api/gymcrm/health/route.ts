@@ -39,6 +39,8 @@ export async function GET() {
     probeTable(authCtx, 'nutricion_planes'),
     probeTable(authCtx, 'nutricion_mediciones'),
     probeTable(authCtx, 'notificaciones_whatsapp_queue'),
+    probeTable(authCtx, 'ui_preferencias'),
+    probeTable(authCtx, 'ui_onboarding_estado'),
   ]);
 
   checks.push(...tableChecks);

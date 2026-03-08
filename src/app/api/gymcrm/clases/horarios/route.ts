@@ -39,7 +39,33 @@ export async function GET(request: Request) {
     return fail(`No se pudieron cargar horarios: ${error.message}`, 500);
   }
 
-  return okList(data ?? [], count ?? 0);
+  const rows = data ?? [];
+  if (rows.length === 0) {
+    return okList([], count ?? 0);
+  }
+
+  const classIds = Array.from(new Set(rows.map((row) => row.clase_base_id)));
+  const classResult = await authCtx.client.database
+    .from(gymTable('clases_base'))
+    .select('id, nombre')
+    .eq('gimnasio_id', authCtx.context.gimnasioId)
+    .in('id', classIds);
+
+  if (classResult.error) {
+    return fail(`No se pudieron resolver nombres de clase: ${classResult.error.message}`, 500);
+  }
+
+  const classMap = new Map<string, string>();
+  for (const row of classResult.data ?? []) {
+    classMap.set(row.id, row.nombre);
+  }
+
+  const resolved = rows.map((row) => ({
+    ...row,
+    clase_nombre: classMap.get(row.clase_base_id) ?? null,
+  }));
+
+  return okList(resolved, count ?? 0);
 }
 
 export async function POST(request: Request) {

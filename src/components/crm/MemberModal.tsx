@@ -21,6 +21,7 @@ export function MemberModal({ isOpen, onClose, onSave, member, readOnly = false 
     status: 'active',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (member) {
@@ -28,6 +29,7 @@ export function MemberModal({ isOpen, onClose, onSave, member, readOnly = false 
     } else {
       setFormData({ first_name: '', last_name: '', email: '', phone: '', status: 'active' });
     }
+    setSubmitError(null);
   }, [member, isOpen]);
 
   if (!isOpen) return null;
@@ -40,9 +42,12 @@ export function MemberModal({ isOpen, onClose, onSave, member, readOnly = false 
     }
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await onSave(formData);
       onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar cliente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,14 +97,15 @@ export function MemberModal({ isOpen, onClose, onSave, member, readOnly = false 
           <div className="space-y-1">
             <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
             <input
-              required
               readOnly={readOnly}
               type="email"
               className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50"
-              value={formData.email}
+              value={formData.email || ''}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
+
+          {submitError ? <p className="text-sm text-red-300">{submitError}</p> : null}
 
           <div className="space-y-1">
             <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Teléfono</label>

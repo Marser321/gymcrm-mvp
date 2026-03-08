@@ -1,6 +1,6 @@
 import { ok, okList, fail, parseJsonBody } from '@/lib/gymcrm/api';
 import { PERMISSIONS, hasRole } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable, parsePagination } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, parsePagination, resolveCurrentClientId } from '@/lib/gymcrm/server';
 import type { Cliente } from '@/lib/gymcrm/types';
 
 export async function GET(request: Request) {
@@ -22,7 +22,11 @@ export async function GET(request: Request) {
     .range(from, to);
 
   if (authCtx.context.role === 'cliente') {
-    query.eq('auth_user_id', authCtx.authUserId);
+    const currentClientId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
+    if (!currentClientId) {
+      return okList([], 0);
+    }
+    query.eq('id', currentClientId);
   }
 
   if (status) {

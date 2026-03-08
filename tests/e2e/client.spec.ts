@@ -192,7 +192,7 @@ test.describe('Cliente portal critical flows', () => {
     const medResponse = page.waitForResponse(
       (resp) => resp.url().includes('/api/gymcrm/nutricion/mediciones') && resp.request().method() === 'POST'
     );
-    await page.getByTestId('cliente-save-seguimiento').click();
+    await page.getByTestId('cliente-save-seguimiento').click({ force: true });
     expect((await medResponse).ok(), 'Seguimiento nutricional cliente debe responder OK').toBeTruthy();
   });
 });

@@ -1,26 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Palette, Check } from 'lucide-react';
+import { useUIExperience } from '@/hooks/useUIExperience';
+import { UI_THEME_IDS, type ThemeId } from '@/lib/gymcrm/ui-settings';
 
-const themes = [
+const themes: Array<{ id: ThemeId; name: string; color: string }> = [
   { id: 'default', name: 'Luxury Sport', color: 'bg-emerald-500' },
   { id: 'graphite', name: 'Graphite Steel', color: 'bg-slate-500' },
   { id: 'ocean', name: 'Ocean Carbon', color: 'bg-cyan-500' },
   { id: 'sand', name: 'Sand Titanium', color: 'bg-amber-500' },
-] as const;
-
-type ThemeId = (typeof themes)[number]['id'];
+];
 
 export function ThemeSwitcher() {
-  const [currentTheme, setCurrentTheme] = useState<ThemeId>('default');
+  const { settings, setThemeId } = useUIExperience();
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const savedTheme = (localStorage.getItem('gym-crm-theme') as ThemeId | null) ?? 'default';
-    applyTheme(savedTheme);
-  }, []);
+  const currentTheme = useMemo(
+    () => (UI_THEME_IDS.includes(settings.themeId) ? settings.themeId : 'default'),
+    [settings.themeId]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -35,17 +34,6 @@ export function ThemeSwitcher() {
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [isOpen]);
-
-  const applyTheme = (themeId: ThemeId) => {
-    setCurrentTheme(themeId);
-    localStorage.setItem('gym-crm-theme', themeId);
-
-    if (themeId === 'default') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', themeId);
-    }
-  };
 
   return (
     <div ref={panelRef} className="relative">
@@ -72,7 +60,7 @@ export function ThemeSwitcher() {
                 type="button"
                 data-testid={`theme-option-${theme.id}`}
                 onClick={() => {
-                  applyTheme(theme.id);
+                  setThemeId(theme.id);
                   setIsOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${

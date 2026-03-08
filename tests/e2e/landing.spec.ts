@@ -51,12 +51,36 @@ test.describe('Landing Luxury Sport Tech', () => {
     const toggle = page.getByTestId('toggle-haptics');
     await expect(toggle).toBeVisible();
 
+    const persistResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/gymcrm/ui/preferences') &&
+        resp.request().method() === 'PATCH'
+    );
     await toggle.click({ force: true });
+    await expect((await persistResponse).ok()).toBeTruthy();
     await expect(toggle).toContainText(/Haptics ON|Haptics OFF/);
 
     const afterFirstClick = await toggle.textContent();
 
     await page.reload();
     await expect(toggle).toHaveText(afterFirstClick ?? '');
+  });
+
+  test('tour demo se muestra completo sin recorte superior', async ({ page }) => {
+    await page.goto('/?onboarding_e2e=1');
+
+    const relaunch = page.getByTestId('onboarding-relaunch');
+    await expect(relaunch).toBeVisible();
+    await relaunch.click();
+
+    const overlay = page.getByTestId('onboarding-overlay');
+    const modal = page.getByTestId('onboarding-modal');
+    await expect(overlay).toBeVisible();
+    await expect(modal).toBeVisible();
+    await expect(page.getByTestId('onboarding-dismiss')).toBeVisible();
+
+    const modalBounds = await modal.boundingBox();
+    expect(modalBounds, 'Modal de onboarding debe tener bounding box').toBeTruthy();
+    expect(modalBounds?.y ?? -1, 'Modal de onboarding no debe quedar cortado arriba').toBeGreaterThanOrEqual(0);
   });
 });

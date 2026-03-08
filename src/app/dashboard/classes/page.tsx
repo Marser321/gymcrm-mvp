@@ -18,6 +18,7 @@ type ClassRecord = {
 type ScheduleRecord = {
   id: string;
   clase_base_id: string;
+  clase_nombre?: string | null;
   sede_id: string | null;
   inicio: string;
   fin: string;
@@ -216,7 +217,7 @@ export default function ClassesPage() {
 
                           <div>
                             <h3 className="text-lg font-bold text-white mb-1">
-                              {classData?.nombre ?? `Clase ${schedule.clase_base_id.slice(0, 8)}`}
+                              {classData?.nombre ?? schedule.clase_nombre ?? 'Clase programada'}
                             </h3>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-gray-400">
                               <span className="flex items-center gap-1.5">

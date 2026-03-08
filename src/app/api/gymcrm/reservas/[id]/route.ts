@@ -1,7 +1,7 @@
 import { ok, fail, parseJsonBody } from '@/lib/gymcrm/api';
 import { canCancelReservation } from '@/lib/gymcrm/domain';
 import { PERMISSIONS, hasRole } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, resolveCurrentClientId } from '@/lib/gymcrm/server';
 import type { ReservationState } from '@/lib/gymcrm/types';
 
 type Params = { params: Promise<{ id: string }> };
@@ -63,15 +63,8 @@ export async function PATCH(request: Request, { params }: Params) {
       return fail('El cliente solo puede cancelar su reserva.', 403);
     }
 
-    const clientResp = await authCtx.client.database
-      .from(gymTable('clientes'))
-      .select('id')
-      .eq('gimnasio_id', authCtx.context.gimnasioId)
-      .eq('auth_user_id', authCtx.authUserId)
-      .limit(1)
-      .maybeSingle();
-
-    if (clientResp.error || !clientResp.data || clientResp.data.id !== reservation.cliente_id) {
+    const currentClientId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
+    if (!currentClientId || currentClientId !== reservation.cliente_id) {
       return fail('Solo puedes cancelar tus propias reservas.', 403);
     }
 

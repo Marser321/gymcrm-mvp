@@ -2,10 +2,10 @@
 
 ## Contexto
 
-- Fecha/hora (UY): 2026-03-07 16:15:03 -03
+- Fecha/hora (UY): 2026-03-07 19:41:25 -03
 - Operador: Codex
 - URL producción: `https://gymcrm-mvp.vercel.app`
-- Deployment Vercel: `https://gymcrm-m0zxaqqx8-marios-projects-4a53e443.vercel.app`
+- Deployment Vercel validado: `https://gymcrm-ma7c6nn67-marios-projects-4a53e443.vercel.app`
 - Backend live: `https://dpxpa3f5.us-east.insforge.app`
 - Entorno (`QA_ENV`): `prod`
 - Evidencia JSON: `.playwright-artifacts/qa-evidence-prod.json`
@@ -17,41 +17,30 @@
 - Endpoint: `GET /api/gymcrm/health`
 - Resultado: PASS
 - `healthy`: `true`
-- Checks: 15/15 OK
 
 ## Smoke API
 
 - Resultado global: PASS
 - Totales: `16 PASS / 0 FAIL`
-- Nota: smoke mantiene idempotencia de nutrición cerrando plan activo previo antes de crear uno nuevo.
+- Incluye validación idempotente de canje monetario en pago manual.
 
 ## E2E crítica
 
 - Resultado global: PASS
-- Totales: `total=14`, `unexpected=0`, `skipped=0`, `flaky=0`
-- Cobertura crítica validada: `/`, `/dashboard`, `/admin*`, `/cliente`
+- Totales: `total=16`, `unexpected=0`, `skipped=0`, `flaky=0`
+- Cobertura validada: `/`, `/dashboard`, `/admin*`, `/cliente`
+- Incluye:
+  - tour onboarding sin recorte,
+  - staff híbrido crear/desactivar (+acción de reactivación disponible),
+  - operación diaria completa (plan+membresía+pago).
 
 ## QA manual mínima
 
-### Staff
-- `/admin/builder`: PASS
-- `/admin/comunidad`: PASS
-- `/admin/nutricion`: PASS
-
-### Cliente
-- `/cliente` reservas dinámicas: PASS
-- `/cliente` canjes: PASS
-- `/cliente` nutrición: PASS
-
-### Evidencia manual
-- Barrido guiado por rol (`admin`/`cliente`) con capturas: `.playwright-artifacts/manual-qa-prod/summary.json`
-
-## Incidencias y workaround
-
-- Incidencia: flake en cancelación dinámica de cliente en prod.
-- Resolución: endurecimiento E2E (cancelación dirigida por `reservaId` + fallback API cliente) y resolución determinista de cliente por `auth_user_id` en rutas live de reservas/me.
+- Header + botón `Ver demo`: PASS
+- `/admin` (staff + operación diaria): PASS
+- `/cliente` sin bloqueos ambiguos: PASS
 
 ## Cierre de producción
 
-- [x] Aprobado para operación.
-- Observaciones: gate automático completo en verde y release estable en URL productiva.
+- [x] Aprobado para operación
+- Observaciones: release estable y demo comercial funcional para presentación.

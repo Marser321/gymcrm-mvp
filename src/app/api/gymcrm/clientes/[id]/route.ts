@@ -1,6 +1,6 @@
 import { ok, fail, parseJsonBody } from '@/lib/gymcrm/api';
 import { PERMISSIONS, hasRole } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, resolveCurrentClientId } from '@/lib/gymcrm/server';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,7 +18,10 @@ export async function GET(_: Request, { params }: Params) {
     .eq('id', id);
 
   if (authCtx.context.role === 'cliente') {
-    query.eq('auth_user_id', authCtx.authUserId);
+    const currentClientId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
+    if (!currentClientId || currentClientId !== id) {
+      return fail('Cliente no encontrado.', 404);
+    }
   }
 
   const { data, error } = await query.maybeSingle();

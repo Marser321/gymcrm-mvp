@@ -1,6 +1,6 @@
 import { ok, okList, fail, parseJsonBody } from '@/lib/gymcrm/api';
 import { PERMISSIONS, hasRole } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable, parsePagination } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, parsePagination, resolveCurrentClientId } from '@/lib/gymcrm/server';
 
 type CreateCheckinBody = {
   cliente_id?: string;
@@ -32,19 +32,12 @@ export async function GET(request: Request) {
   }
 
   if (authCtx.context.role === 'cliente') {
-    const { data: cliente } = await authCtx.client.database
-      .from(gymTable('clientes'))
-      .select('id')
-      .eq('gimnasio_id', authCtx.context.gimnasioId)
-      .eq('auth_user_id', authCtx.authUserId)
-      .limit(1)
-      .maybeSingle();
-
-    if (!cliente?.id) {
+    const currentClientId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
+    if (!currentClientId) {
       return okList([], 0);
     }
 
-    query.eq('cliente_id', cliente.id);
+    query.eq('cliente_id', currentClientId);
   }
 
   const { data, error, count } = await query;

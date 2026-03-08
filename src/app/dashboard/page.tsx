@@ -34,6 +34,7 @@ type DashboardResponse = {
       horarios: Array<{
         id: string;
         clase_base_id: string;
+        clase_nombre?: string | null;
         inicio: string;
         fin: string;
         estado: string;
@@ -282,7 +283,7 @@ export default function DashboardPage() {
               ) : (
                 dashboard?.recientes.horarios.map((h) => (
                   <div key={h.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                    <p className="text-white font-medium">Clase #{h.clase_base_id.slice(0, 8)}</p>
+                    <p className="text-white font-medium">{h.clase_nombre || 'Clase programada'}</p>
                     <p className="text-xs text-gray-400">
                       {new Date(h.inicio).toLocaleString('es-UY')} - {new Date(h.fin).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}
                     </p>

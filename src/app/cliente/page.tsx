@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Calendar, CreditCard, QrCode, ShieldCheck, Trophy, Zap } from 'lucide-react';
+import { useGymcrmAnalytics } from '@/components/analytics/GymcrmAnalyticsProvider';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
 import { PortalAccessAssistant } from '@/components/gymcrm/PortalAccessAssistant';
@@ -26,6 +27,8 @@ type MeResponse = {
       email: string | null;
       codigo_qr: string;
       estado: string;
+      fallback?: boolean;
+      source?: string;
     } | null;
   };
 };
@@ -53,6 +56,13 @@ type Reservation = {
   id: string;
   horario_id: string;
   estado: string;
+  created_at: string;
+};
+
+type Checkin = {
+  id: string;
+  horario_id: string | null;
+  metodo: 'qr' | 'manual';
   created_at: string;
 };
 
@@ -146,6 +156,7 @@ const CLIENT_PORTAL_INTENT: PortalAccessIntent = {
 export default function ClientePage() {
   const { role: openRole, ready: sessionReady } = useOpenSession();
   const { fireHaptic } = useUIExperience();
+  const analytics = useGymcrmAnalytics();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -156,6 +167,7 @@ export default function ClientePage() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [pointsBalance, setPointsBalance] = useState(0);
   const [pointsHistory, setPointsHistory] = useState<PointsMovement[]>([]);
   const [canjes, setCanjes] = useState<Canje[]>([]);
@@ -175,6 +187,7 @@ export default function ClientePage() {
   const [consentText, setConsentText] = useState(DEFAULT_CONSENT_TEXT);
   const [adherencia, setAdherencia] = useState<number | ''>(75);
   const [seguimientoNotas, setSeguimientoNotas] = useState('');
+  const [precheckinReservaId, setPrecheckinReservaId] = useState<string | null>(null);
 
   const currency = useMemo(
     () =>
@@ -218,6 +231,7 @@ export default function ClientePage() {
         setMemberships([]);
         setPayments([]);
         setReservations([]);
+        setCheckins([]);
         setPointsBalance(0);
         setPointsHistory([]);
         setCanjes([]);
@@ -236,6 +250,7 @@ export default function ClientePage() {
         membresiasResp,
         pagosResp,
         reservasResp,
+        checkinsResp,
         puntosResp,
         canjesResp,
         rankingResp,
@@ -250,6 +265,9 @@ export default function ClientePage() {
         apiGet<ListResponse<Membership>>('/api/gymcrm/membresias?pageSize=50'),
         apiGet<ListResponse<Payment>>('/api/gymcrm/pagos?pageSize=50'),
         apiGet<ListResponse<Reservation>>('/api/gymcrm/reservas?pageSize=50'),
+        apiGet<ListResponse<Checkin>>('/api/gymcrm/checkins?pageSize=80').catch(
+          () => ({ data: [] }) as ListResponse<Checkin>
+        ),
         apiGet<{ data: PointsMovement[]; count: number; balance: number }>('/api/gymcrm/comunidad/puntos?pageSize=50'),
         apiGet<ListResponse<Canje>>('/api/gymcrm/comunidad/canjes?pageSize=50'),
         apiGet<{ data: { month: string; ranking: RankingEntry[] } }>('/api/gymcrm/comunidad/ranking?limit=5'),
@@ -267,6 +285,7 @@ export default function ClientePage() {
       setMemberships(membresiasResp.data ?? []);
       setPayments(pagosResp.data ?? []);
       setReservations(reservasResp.data ?? []);
+      setCheckins(checkinsResp.data ?? []);
       setPointsBalance(puntosResp.balance ?? 0);
       setPointsHistory(puntosResp.data ?? []);
       setCanjes(canjesResp.data ?? []);
@@ -288,6 +307,7 @@ export default function ClientePage() {
       setMemberships([]);
       setPayments([]);
       setReservations([]);
+      setCheckins([]);
       setPointsBalance(0);
       setPointsHistory([]);
       setCanjes([]);
@@ -316,6 +336,7 @@ export default function ClientePage() {
       await apiMutation('/api/gymcrm/builder/reservas', 'POST', {
         sesion_id: sesionId,
       });
+      analytics.track('reserva_dinamica_creada', { sesion_id: sesionId });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -333,6 +354,7 @@ export default function ClientePage() {
       await apiMutation(`/api/gymcrm/builder/reservas/${reservaId}`, 'PATCH', {
         estado: 'cancelada',
       });
+      analytics.track('reserva_dinamica_cancelada', { reserva_id: reservaId });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -356,6 +378,7 @@ export default function ClientePage() {
       await apiMutation('/api/gymcrm/comunidad/canjes', 'POST', {
         premio_id: selectedPremioId,
       });
+      analytics.track('canje_solicitado', { premio_id: selectedPremioId });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -381,6 +404,7 @@ export default function ClientePage() {
         medio: 'app',
       });
 
+      analytics.track('nutricion_consentimiento_aceptado', { medio: 'app' });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -402,6 +426,10 @@ export default function ClientePage() {
       });
 
       setSeguimientoNotas('');
+      analytics.track('nutricion_seguimiento_guardado', {
+        plan_id: activePlan?.id ?? null,
+        adherencia_pct: adherencia === '' ? null : Number(adherencia),
+      });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -412,6 +440,28 @@ export default function ClientePage() {
     }
   };
 
+  const preCheckinBaseReservation = async (reservation: Reservation) => {
+    if (!reservation.horario_id) return;
+    setPrecheckinReservaId(reservation.id);
+    setError(null);
+    try {
+      await apiMutation('/api/gymcrm/clases/asistencia', 'POST', {
+        horario_id: reservation.horario_id,
+      });
+      analytics.track('checkin_pre_cliente', {
+        horario_id: reservation.horario_id,
+        reserva_id: reservation.id,
+      });
+      fireHaptic('success');
+      await loadData();
+    } catch (err) {
+      setError(toUserErrorMessage(err, 'No se pudo registrar pre-check-in.'));
+      fireHaptic('error');
+    } finally {
+      setPrecheckinReservaId(null);
+    }
+  };
+
   const upcomingSessions = useMemo(() => {
     const now = Date.now();
     return sessions
@@ -419,6 +469,17 @@ export default function ClientePage() {
       .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())
       .slice(0, 50);
   }, [sessions]);
+
+  const latestCheckinByHorario = useMemo(() => {
+    const map: Record<string, Checkin> = {};
+    for (const item of checkins) {
+      if (!item.horario_id) continue;
+      if (!map[item.horario_id]) {
+        map[item.horario_id] = item;
+      }
+    }
+    return map;
+  }, [checkins]);
 
   const lastMedicion = mediciones[0] ?? null;
 
@@ -446,10 +507,22 @@ export default function ClientePage() {
         <NoiseTexture />
         <div className="relative z-10 max-w-4xl mx-auto px-6 py-20">
           <GlassPanel>
-            <h1 className="text-3xl font-bold text-white mb-3">Portal cliente sin perfil vinculado</h1>
+            <h1 className="text-3xl font-bold text-white mb-3">No se pudo resolver perfil cliente demo</h1>
             <p className="text-gray-300">
-              Esta sesion ya esta en rol cliente, pero no tiene ficha activa asociada. Crea o vincula cliente desde admin para probar el flujo completo.
+              Esta sesión está en rol cliente, pero no se pudo cargar ficha activa en este intento. Reintenta autocorrección demo para continuar.
             </p>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  void loadData();
+                }}
+                data-testid="cliente-retry-autocorrect"
+                className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-semibold px-4 py-2.5"
+              >
+                Reintentar autocorrección
+              </button>
+            </div>
             {error ? <p className="mt-4 text-red-300">{error}</p> : null}
           </GlassPanel>
         </div>
@@ -468,6 +541,11 @@ export default function ClientePage() {
         <header>
           <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-3">Portal Cliente</h1>
           <p className="text-gray-400 text-lg">Bienvenido {me.cliente.nombres}. Gestiona tu membresía, reservas, canjes y nutrición.</p>
+          {me.cliente.fallback ? (
+            <p className="mt-2 text-xs text-cyan-300">
+              Perfil cliente demo autocorregido ({me.cliente.source ?? 'fallback'}) para que puedas testear sin fricción.
+            </p>
+          ) : null}
           {error ? <p className="text-red-300 mt-3">{error}</p> : null}
         </header>
 
@@ -498,6 +576,41 @@ export default function ClientePage() {
             <h2 className="text-lg text-white font-semibold mb-3 flex items-center gap-2"><Calendar className="w-5 h-5 text-amber-400" /> Reservas base</h2>
             <p className="text-3xl font-bold text-white">{reservations.length}</p>
             <p className="text-sm text-gray-400 mt-1">Clases tradicionales</p>
+            <div className="mt-4 space-y-2">
+              {reservations.length === 0 ? (
+                <p className="text-xs text-gray-500">Aún no tienes reservas base.</p>
+              ) : (
+                reservations.slice(0, 4).map((reservation) => {
+                  const checkin = reservation.horario_id ? latestCheckinByHorario[reservation.horario_id] : null;
+                  return (
+                    <div key={reservation.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                      <p className="text-xs text-gray-300">
+                        Reserva {reservation.estado}
+                        {checkin
+                          ? ` • check-in ${checkin.metodo} ${new Date(checkin.created_at).toLocaleTimeString('es-UY', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}`
+                          : ''}
+                      </p>
+                      {reservation.estado !== 'cancelada' && !checkin ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void preCheckinBaseReservation(reservation);
+                          }}
+                          disabled={precheckinReservaId === reservation.id || isMutating}
+                          data-testid={`cliente-precheckin-${reservation.id}`}
+                          className="mt-2 rounded-lg bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30 px-2.5 py-1 text-xs disabled:opacity-60"
+                        >
+                          {precheckinReservaId === reservation.id ? 'Validando...' : 'Pre-check-in'}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+            </div>
             <Link href="/dashboard/classes" className="inline-block mt-4 text-sm text-indigo-300 hover:text-indigo-200 underline">
               Ir a reservar/cancelar clases base
             </Link>
@@ -668,13 +781,17 @@ export default function ClientePage() {
 
           <GlassPanel>
             <h2 className="text-lg text-white font-semibold mb-4">Nutrición y consentimiento</h2>
-            <div className="space-y-3">
+
+            {/* Sección de Consentimiento */}
+            <div className="space-y-3 mb-4">
               {activeConsent ? (
-                <p className="text-sm text-emerald-300">
-                  Consentimiento vigente ({activeConsent.medio}) desde {new Date(activeConsent.aceptado_en).toLocaleDateString('es-UY')}.
-                </p>
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-900/10 px-4 py-3">
+                  <p className="text-sm text-emerald-300">
+                    ✓ Consentimiento vigente ({activeConsent.medio}) desde {new Date(activeConsent.aceptado_en).toLocaleDateString('es-UY')}.
+                  </p>
+                </div>
               ) : (
-                <>
+                <div className="space-y-3">
                   <p className="text-sm text-amber-300">No tienes consentimiento activo. Debes aceptarlo para activar plan.</p>
                   <textarea
                     value={consentText}
@@ -690,40 +807,58 @@ export default function ClientePage() {
                   >
                     <span className="inline-flex items-center gap-2 px-4 py-2.5">Aceptar consentimiento</span>
                   </button>
-                </>
+                </div>
               )}
+            </div>
 
-              <div className="pt-2 border-t border-white/10">
+            {/* Sección de Plan y Seguimiento */}
+            <div className="space-y-3 border-t border-white/10 pt-4">
+              <div>
                 <p className="text-sm text-gray-300">
                   Plan activo: <span className="text-white font-semibold">{activePlan?.estado ?? 'sin plan activo'}</span>
                 </p>
                 {activePlan?.objetivo_general ? <p className="text-xs text-gray-400 mt-1">Objetivo: {activePlan.objetivo_general}</p> : null}
               </div>
 
-              <div className="space-y-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={adherencia}
-                  onChange={(event) => setAdherencia(event.target.value === '' ? '' : Number(event.target.value))}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
-                  placeholder="Adherencia %"
-                />
-                <input
-                  value={seguimientoNotas}
-                  onChange={(event) => setSeguimientoNotas(event.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
-                  placeholder="Notas de seguimiento"
-                />
-                <button
-                  disabled={isMutating}
-                  onClick={saveSeguimiento}
-                  data-testid="cliente-save-seguimiento"
-                  className="rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-semibold disabled:opacity-60"
-                >
-                  <span className="inline-flex items-center gap-2 px-4 py-2.5">Guardar seguimiento</span>
-                </button>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 ml-1">Adherencia %</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={adherencia}
+                      onChange={(event) => setAdherencia(event.target.value === '' ? '' : Number(event.target.value))}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500/50 outline-none transition-colors"
+                      placeholder="0-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 ml-1">Notas rápidas</label>
+                    <input
+                      value={seguimientoNotas}
+                      onChange={(event) => setSeguimientoNotas(event.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500/50 outline-none transition-colors"
+                      placeholder="Ej: Entrené fuerte"
+                    />
+                  </div>
+                </div>
+
+                <div className="relative z-50">
+                  <button
+                    disabled={isMutating}
+                    onClick={saveSeguimiento}
+                    data-testid="cliente-save-seguimiento"
+                    className="group relative w-full overflow-hidden rounded-xl bg-indigo-600 p-px font-semibold text-white shadow-lg active:scale-[0.98] transition-transform disabled:opacity-50"
+                  >
+                    <div className="relative z-10 rounded-[11px] bg-indigo-600 px-4 py-3 group-hover:bg-indigo-500 transition-colors">
+                      <span className="flex items-center justify-center gap-2">
+                        {isMutating ? 'Guardando...' : 'Guardar seguimiento'}
+                      </span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {lastMedicion ? (

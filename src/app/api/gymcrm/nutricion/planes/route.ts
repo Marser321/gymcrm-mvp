@@ -1,6 +1,6 @@
 import { fail, ok, okList, parseJsonBody } from '@/lib/gymcrm/api';
 import { hasRole, PERMISSIONS } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable, parsePagination } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, parsePagination, resolveCurrentClientId } from '@/lib/gymcrm/server';
 import { isPlanNutricionState } from '@/lib/gymcrm/types';
 
 type CreatePlanBody = {
@@ -18,19 +18,6 @@ type CreatePlanBody = {
   };
 };
 
-const resolveClientId = async (authCtx: Extract<Awaited<ReturnType<typeof getAuthContext>>, { ok: true }>) => {
-  const { data, error } = await authCtx.client.database
-    .from(gymTable('clientes'))
-    .select('id')
-    .eq('gimnasio_id', authCtx.context.gimnasioId)
-    .eq('auth_user_id', authCtx.authUserId)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data?.id ?? null;
-};
-
 export async function GET(request: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx.ok) return authCtx.response;
@@ -42,7 +29,7 @@ export async function GET(request: Request) {
 
   let clienteId = clienteIdQuery;
   if (authCtx.context.role === 'cliente') {
-    clienteId = await resolveClientId(authCtx);
+    clienteId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
     if (!clienteId) return okList([], 0);
   }
 

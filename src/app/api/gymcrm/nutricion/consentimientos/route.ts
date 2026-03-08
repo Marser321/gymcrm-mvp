@@ -1,6 +1,6 @@
 import { fail, ok, okList, parseJsonBody } from '@/lib/gymcrm/api';
 import { hasRole, PERMISSIONS } from '@/lib/gymcrm/permissions';
-import { getAuthContext, gymTable, parsePagination } from '@/lib/gymcrm/server';
+import { getAuthContext, gymTable, parsePagination, resolveCurrentClientId } from '@/lib/gymcrm/server';
 import { isConsentimientoMedio } from '@/lib/gymcrm/types';
 
 type CreateConsentBody = {
@@ -8,19 +8,6 @@ type CreateConsentBody = {
   version_texto: string;
   medio?: string;
   metadata?: Record<string, unknown>;
-};
-
-const resolveClientId = async (authCtx: Extract<Awaited<ReturnType<typeof getAuthContext>>, { ok: true }>) => {
-  const { data, error } = await authCtx.client.database
-    .from(gymTable('clientes'))
-    .select('id')
-    .eq('gimnasio_id', authCtx.context.gimnasioId)
-    .eq('auth_user_id', authCtx.authUserId)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data?.id ?? null;
 };
 
 export async function GET(request: Request) {
@@ -34,7 +21,7 @@ export async function GET(request: Request) {
 
   let clienteId = clienteIdQuery;
   if (authCtx.context.role === 'cliente') {
-    clienteId = await resolveClientId(authCtx);
+    clienteId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
     if (!clienteId) return okList([], 0);
   }
 
@@ -82,9 +69,9 @@ export async function POST(request: Request) {
     return fail('medio inválido.', 400);
   }
 
-  let clienteId = body.cliente_id;
+  let clienteId: string | null | undefined = body.cliente_id;
   if (isClient || !clienteId) {
-    clienteId = await resolveClientId(authCtx);
+    clienteId = await resolveCurrentClientId(authCtx, { allowFallback: true, autoCreate: true });
   }
 
   if (!clienteId) {

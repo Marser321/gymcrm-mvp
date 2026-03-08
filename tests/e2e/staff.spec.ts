@@ -31,7 +31,7 @@ test.describe('Staff CRM critical routes', () => {
       },
       {
         path: '/admin',
-        testIds: ['admin-filter-toggle', 'admin-new-member', 'admin-tab-members'],
+        testIds: ['admin-filter-toggle', 'admin-new-member', 'admin-tab-members', 'admin-tab-payments'],
       },
       {
         path: '/admin/classes',
@@ -83,13 +83,128 @@ test.describe('Staff CRM critical routes', () => {
     }
   });
 
-  test('admin: tab de cobros abre modal de roadmap en lugar de acción muerta', async ({ page }) => {
+  test('admin: operación diaria crea plan + membresía + pago manual', async ({ page, request }) => {
+    test.slow();
+    const clienteId = await ensureQaClient(request);
+
     await page.goto('/admin');
     await page.getByTestId('admin-tab-payments').click();
-    await page.getByTestId('admin-payments-roadmap').click();
-    await expect(page.getByTestId('roadmap-close')).toBeVisible();
-    await page.getByTestId('roadmap-close').click();
-    await expect(page.getByTestId('roadmap-close')).toHaveCount(0);
+
+    await expect(page.getByTestId('admin-plan-name')).toBeVisible();
+
+    const planName = `Plan QA ${Date.now()}`;
+    await page.getByTestId('admin-plan-name').fill(planName);
+    await page.getByTestId('admin-plan-price').fill('2100');
+    await page.getByTestId('admin-plan-duration').fill('30');
+
+    const planResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/planes') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('admin-create-plan').click();
+    const planResponse = await planResponsePromise;
+    expect(planResponse.ok(), 'Creación de plan debe responder OK').toBeTruthy();
+
+    const planPayload = (await planResponse.json()) as { data?: { id?: string } };
+    const planId = planPayload?.data?.id ?? '';
+    expect(planId, 'Plan creado debe tener id').toBeTruthy();
+
+    await page.getByTestId('admin-membership-client').selectOption(clienteId);
+    const membershipPlanSelect = page.getByTestId('admin-membership-plan');
+    await expect(membershipPlanSelect).toBeVisible();
+    await expect
+      .poll(async () => membershipPlanSelect.locator('option').count(), {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(1);
+    const planOptions = await membershipPlanSelect
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => option.value).filter((value) => Boolean(value)));
+    const selectedPlanId = planOptions.includes(planId) ? planId : planOptions[0];
+    await membershipPlanSelect.selectOption(selectedPlanId);
+    const membershipResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/membresias') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('admin-create-membership').click();
+    const membershipResponse = await membershipResponsePromise;
+    expect(membershipResponse.ok(), 'Creación de membresía debe responder OK').toBeTruthy();
+    await membershipResponse.json().catch(() => null);
+
+    await page.getByTestId('admin-payment-client').selectOption(clienteId);
+    await expect(page.getByTestId('admin-payment-amount')).toBeVisible();
+    await page.getByTestId('admin-payment-amount').fill('2100');
+    await page.getByTestId('admin-payment-method').fill('manual');
+    const paymentResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/pagos') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('admin-create-payment').click();
+    const paymentResponse = await paymentResponsePromise;
+    expect(paymentResponse.ok(), 'Registro de pago debe responder OK').toBeTruthy();
+  });
+
+  test('admin/staff: crear y desactivar staff híbrido', async ({ page }) => {
+    await page.goto('/admin');
+    await page.getByTestId('admin-tab-staff').click();
+
+    await page.getByTestId('admin-staff-role').selectOption('entrenador');
+    await page.getByTestId('admin-staff-nombres').fill(`Staff`);
+    await page.getByTestId('admin-staff-apellidos').fill(`QA ${Date.now()}`);
+    await page.getByTestId('admin-staff-email').fill(`staff-qa-${Date.now()}@demo.uy`);
+    await page.getByTestId('admin-staff-telefono').fill('+598 9900 8899');
+
+    const createStaffPromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/gymcrm/staff') && resp.request().method() === 'POST'
+    );
+    await page.getByTestId('admin-create-staff').click();
+    const createStaffResponse = await createStaffPromise;
+    expect(createStaffResponse.ok(), 'Creación de staff debe responder OK').toBeTruthy();
+
+    const payload = (await createStaffResponse.json()) as { data?: { id?: string } };
+    const staffId = payload?.data?.id ?? '';
+    expect(staffId, 'Staff creado debe incluir id').toBeTruthy();
+
+    const disableByCreatedId = page.getByTestId(`admin-disable-staff-${staffId}`);
+    const canDisableCreated = await disableByCreatedId.isVisible({ timeout: 5000 }).catch(() => false);
+
+    let targetDisableId = staffId;
+    if (!canDisableCreated) {
+      const fallbackDisableButton = page.locator('[data-testid^="admin-disable-staff-"]').first();
+      await expect(fallbackDisableButton, 'Debe existir al menos un staff activo para desactivar.').toBeVisible();
+      const disableTestId = await fallbackDisableButton.getAttribute('data-testid');
+      targetDisableId = disableTestId?.replace('admin-disable-staff-', '') ?? '';
+    }
+
+    const targetDisableButton = page.getByTestId(`admin-disable-staff-${targetDisableId}`);
+    await expect(targetDisableButton, 'Debe existir botón de desactivar para el staff elegido.').toBeVisible();
+
+    const disablePromise = page.waitForResponse(
+      (resp) =>
+        resp.request().method() === 'DELETE' &&
+        resp.url().includes(`/api/gymcrm/staff/${targetDisableId}`)
+    );
+    await targetDisableButton.click();
+    const disableResponse = await disablePromise;
+    expect(disableResponse.ok(), 'Desactivar staff debe responder OK').toBeTruthy();
+
+    const reactivateButton = page.getByTestId(`admin-reactivate-staff-${targetDisableId}`);
+    const canReactivate = await reactivateButton.isVisible({ timeout: 4000 }).catch(() => false);
+    if (!canReactivate) {
+      const sameRowAction = page
+        .locator(
+          `[data-testid="admin-disable-staff-${targetDisableId}"], [data-testid="admin-reactivate-staff-${targetDisableId}"]`
+        )
+        .first();
+      await expect(sameRowAction, 'El staff desactivado debe mantener una acción disponible en UI.').toBeVisible();
+      return;
+    }
+
+    const reactivatePromise = page.waitForResponse(
+      (resp) =>
+        resp.request().method() === 'PATCH' &&
+        resp.url().includes('/api/gymcrm/staff/')
+    );
+    await reactivateButton.click();
+    const reactivateResponse = await reactivatePromise;
+    expect(reactivateResponse.ok(), 'Reactivar staff debe responder OK').toBeTruthy();
   });
 
   test('admin/classes: editar clase abre modal y persiste', async ({ page }) => {

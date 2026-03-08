@@ -27,7 +27,7 @@ export function PortalAccessAssistant({
   intent,
   currentRole,
   title = 'Portal restringido por rol',
-  description = 'Para probar este portal en modo demo, cambia temporalmente el rol y entra directo.',
+  description = 'Para probar este portal en demo abierta, cambiá de rol y entrá directo con el botón principal.',
   error,
 }: PortalAccessAssistantProps) {
   const { setRole } = useOpenSession();

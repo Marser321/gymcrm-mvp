@@ -2483,6 +2483,116 @@ const listMembresias = (request: Request) => {
   return okList(data, count);
 };
 
+const listPlanes = (request: Request) => {
+  const searchParams = new URL(request.url).searchParams;
+  const active = searchParams.get('active');
+
+  let rows = sortByUpdatedDesc(demoState.planes);
+  if (active === 'true') rows = rows.filter((item) => item.activo);
+  if (active === 'false') rows = rows.filter((item) => !item.activo);
+
+  const { data, count } = paginate(rows, searchParams);
+  return okList(data, count);
+};
+
+const createPlan = async (request: Request) => {
+  const session = openSession(request);
+  const permissionError = requireRole(session.role, PERMISSIONS.membresias, 'No tienes permisos para crear planes.');
+  if (permissionError) return permissionError;
+
+  const body = await parseJsonBody<{
+    nombre?: string;
+    descripcion?: string | null;
+    precio?: number;
+    moneda?: string;
+    duracion_dias?: number;
+    incluye_reservas?: boolean;
+    activo?: boolean;
+  }>(request);
+
+  const nombre = body.nombre?.trim();
+  const precio = Number(body.precio ?? 0);
+  const duracionDias = Number(body.duracion_dias ?? 0);
+
+  if (!nombre) return fail('nombre es obligatorio.', 400);
+  if (!Number.isFinite(precio) || precio < 0) return fail('precio inválido.', 400);
+  if (!Number.isFinite(duracionDias) || duracionDias <= 0) return fail('duracion_dias inválido.', 400);
+
+  const stamp = nowIso();
+  const plan: DemoPlan = {
+    id: nextId('plan'),
+    gimnasio_id: demoState.gymId,
+    nombre,
+    descripcion: body.descripcion?.trim() || null,
+    precio,
+    moneda: body.moneda?.trim() || 'UYU',
+    duracion_dias: Math.floor(duracionDias),
+    incluye_reservas: body.incluye_reservas ?? true,
+    activo: body.activo ?? true,
+    created_at: stamp,
+    updated_at: stamp,
+  };
+
+  demoState.planes.unshift(plan);
+  return ok(plan, { status: 201 });
+};
+
+const patchPlan = async (request: Request, id: string) => {
+  const session = openSession(request);
+  const permissionError = requireRole(session.role, PERMISSIONS.membresias, 'No tienes permisos para editar planes.');
+  if (permissionError) return permissionError;
+
+  const plan = demoState.planes.find((item) => item.id === id);
+  if (!plan) return fail('Plan no encontrado.', 404);
+
+  const body = await parseJsonBody<{
+    nombre?: string;
+    descripcion?: string | null;
+    precio?: number;
+    moneda?: string;
+    duracion_dias?: number;
+    incluye_reservas?: boolean;
+    activo?: boolean;
+  }>(request);
+
+  if (body.nombre !== undefined) {
+    const nombre = body.nombre.trim();
+    if (!nombre) return fail('nombre es obligatorio.', 400);
+    plan.nombre = nombre;
+  }
+
+  if (body.descripcion !== undefined) plan.descripcion = body.descripcion?.trim() || null;
+  if (body.precio !== undefined) {
+    const precio = Number(body.precio);
+    if (!Number.isFinite(precio) || precio < 0) return fail('precio inválido.', 400);
+    plan.precio = precio;
+  }
+  if (body.moneda !== undefined) plan.moneda = body.moneda?.trim() || 'UYU';
+  if (body.duracion_dias !== undefined) {
+    const duracionDias = Number(body.duracion_dias);
+    if (!Number.isFinite(duracionDias) || duracionDias <= 0) return fail('duracion_dias inválido.', 400);
+    plan.duracion_dias = Math.floor(duracionDias);
+  }
+  if (body.incluye_reservas !== undefined) plan.incluye_reservas = body.incluye_reservas;
+  if (body.activo !== undefined) plan.activo = body.activo;
+
+  plan.updated_at = nowIso();
+  return ok(plan);
+};
+
+const deactivatePlan = (request: Request, id: string) => {
+  const session = openSession(request);
+  const permissionError = requireRole(session.role, PERMISSIONS.membresias, 'No tienes permisos para pausar planes.');
+  if (permissionError) return permissionError;
+
+  const plan = demoState.planes.find((item) => item.id === id);
+  if (!plan) return fail('Plan no encontrado.', 404);
+
+  plan.activo = false;
+  plan.updated_at = nowIso();
+  return ok(plan);
+};
+
 const createMembresia = async (request: Request) => {
   const session = openSession(request);
   const permissionError = requireRole(session.role, PERMISSIONS.membresias, 'No tienes permisos para crear membresías.');
@@ -2841,6 +2951,13 @@ const dispatch = async (request: Request, method: string, path: string[]) => {
   if (segment0 === 'membresias') {
     if (path.length === 1 && method === 'GET') return listMembresias(request);
     if (path.length === 1 && method === 'POST') return createMembresia(request);
+  }
+
+  if (segment0 === 'planes') {
+    if (path.length === 1 && method === 'GET') return listPlanes(request);
+    if (path.length === 1 && method === 'POST') return createPlan(request);
+    if (path.length === 2 && method === 'PATCH') return patchPlan(request, segment1);
+    if (path.length === 2 && method === 'DELETE') return deactivatePlan(request, segment1);
   }
 
   if (segment0 === 'pagos') {

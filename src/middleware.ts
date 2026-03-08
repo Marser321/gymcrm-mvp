@@ -24,8 +24,19 @@ const applyOpenRoleCookie = (request: NextRequest, response: NextResponse): Next
 export default function middleware(request: NextRequest) {
   const mode = getGymcrmDataMode();
   const pathname = request.nextUrl.pathname;
+  const keepLiveApiInDemo =
+    pathname.startsWith('/api/gymcrm/ui/') ||
+    pathname === '/api/gymcrm/checkins' ||
+    pathname === '/api/gymcrm/clases/asistencia' ||
+    pathname.startsWith('/api/gymcrm/staff') ||
+    pathname === '/api/gymcrm/demo/reset';
 
-  if (mode === 'demo' && pathname.startsWith('/api/gymcrm/') && !pathname.startsWith('/api/gymcrm_open/')) {
+  if (
+    mode === 'demo' &&
+    pathname.startsWith('/api/gymcrm/') &&
+    !pathname.startsWith('/api/gymcrm_open/') &&
+    !keepLiveApiInDemo
+  ) {
     const nextUrl = request.nextUrl.clone();
     nextUrl.pathname = pathname.replace('/api/gymcrm/', '/api/gymcrm_open/');
     return applyOpenRoleCookie(request, NextResponse.rewrite(nextUrl));
@@ -45,4 +56,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
-

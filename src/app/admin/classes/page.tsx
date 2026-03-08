@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Calendar, Clock, Edit2, Plus, Settings, Trash2, Users, X } from 'lucide-react';
+import { Activity, Calendar, CheckCircle2, Clock, Edit2, Plus, ScanLine, Settings, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { useGymcrmAnalytics } from '@/components/analytics/GymcrmAnalyticsProvider';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
 import { EmptyState, StatusPill } from '@/components/ui/premium';
@@ -23,10 +24,42 @@ type ClassRecord = {
 type ScheduleRecord = {
   id: string;
   clase_base_id: string;
+  clase_nombre?: string | null;
   inicio: string;
   fin: string;
   estado: 'programada' | 'cancelada' | 'finalizada';
   cupo_total: number;
+};
+
+type AttendanceItem = {
+  reserva_id: string;
+  cliente_id: string;
+  cliente_nombre: string;
+  estado_reserva: 'confirmada' | 'espera' | 'cancelada' | 'asistio' | 'ausente';
+  asistencia_estado: 'pendiente' | 'asistio' | 'ausente';
+  checkin: {
+    id: string;
+    metodo: string;
+    created_at: string;
+  } | null;
+};
+
+type AttendanceResponse = {
+  data: {
+    horario: {
+      id: string;
+      inicio: string;
+      fin: string;
+      estado: string;
+      cupo_total: number;
+    };
+    clase: {
+      id: string;
+      nombre: string;
+      instructor_nombre: string | null;
+    } | null;
+    asistentes: AttendanceItem[];
+  };
 };
 
 type ListResponse<T> = { data: T[] };
@@ -43,8 +76,9 @@ type EditClassForm = {
 
 export default function AdminClassesPage() {
   const { fireHaptic } = useUIExperience();
+  const analytics = useGymcrmAnalytics();
 
-  const [activeTab, setActiveTab] = useState<'schedule' | 'types'>('types');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'types' | 'attendance'>('types');
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,6 +93,13 @@ export default function AdminClassesPage() {
   const [newScheduleEnd, setNewScheduleEnd] = useState('');
 
   const [editingClass, setEditingClass] = useState<EditClassForm | null>(null);
+  const [attendanceScheduleId, setAttendanceScheduleId] = useState('');
+  const [attendanceRows, setAttendanceRows] = useState<AttendanceItem[]>([]);
+  const [attendanceClassName, setAttendanceClassName] = useState('');
+  const [attendanceTimeLabel, setAttendanceTimeLabel] = useState('');
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceActionId, setAttendanceActionId] = useState<string | null>(null);
+  const [attendanceQrCode, setAttendanceQrCode] = useState('');
 
   const classMap = useMemo(() => {
     const map: Record<string, ClassRecord> = {};
@@ -101,6 +142,21 @@ export default function AdminClassesPage() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (schedules.length === 0) {
+      setAttendanceScheduleId('');
+      setAttendanceRows([]);
+      return;
+    }
+
+    setAttendanceScheduleId((current) => {
+      if (current && schedules.some((schedule) => schedule.id === current)) {
+        return current;
+      }
+      return schedules[0].id;
+    });
+  }, [schedules]);
+
   const createClass = async () => {
     try {
       if (!newClassName.trim()) {
@@ -115,6 +171,10 @@ export default function AdminClassesPage() {
         duracion_min: newClassDuration,
       });
 
+      analytics.track('clase_base_creada', {
+        nombre: newClassName.trim(),
+        cupo_total: newClassCupo,
+      });
       setNewClassName('');
       fireHaptic('success');
       await loadData();
@@ -127,6 +187,7 @@ export default function AdminClassesPage() {
   const pauseClass = async (id: string) => {
     try {
       await apiMutation(`/api/gymcrm/clases/${id}`, 'DELETE');
+      analytics.track('clase_base_pausada', { clase_id: id });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -160,6 +221,9 @@ export default function AdminClassesPage() {
         nivel: editingClass.nivel || null,
       });
 
+      analytics.track('clase_base_editada', {
+        clase_id: editingClass.id,
+      });
       setEditingClass(null);
       fireHaptic('success');
       await loadData();
@@ -183,6 +247,9 @@ export default function AdminClassesPage() {
         fin: newScheduleEnd,
       });
 
+      analytics.track('horario_clase_creado', {
+        clase_base_id: newScheduleClassId,
+      });
       setNewScheduleStart('');
       setNewScheduleEnd('');
       fireHaptic('success');
@@ -196,6 +263,7 @@ export default function AdminClassesPage() {
   const cancelSchedule = async (id: string) => {
     try {
       await apiMutation(`/api/gymcrm/clases/horarios/${id}`, 'DELETE');
+      analytics.track('horario_clase_cancelado', { horario_id: id });
       fireHaptic('success');
       await loadData();
     } catch (err) {
@@ -203,6 +271,102 @@ export default function AdminClassesPage() {
       fireHaptic('error');
     }
   };
+
+  const loadAttendance = useCallback(
+    async (scheduleId: string) => {
+      if (!scheduleId) return;
+
+      setAttendanceLoading(true);
+      setError(null);
+
+      try {
+        const response = await apiGet<AttendanceResponse>(
+          `/api/gymcrm/clases/asistencia?horarioId=${encodeURIComponent(scheduleId)}`
+        );
+
+        const payload = response.data;
+        setAttendanceRows(payload?.asistentes ?? []);
+        setAttendanceScheduleId(scheduleId);
+        setAttendanceClassName(payload?.clase?.nombre ?? `Horario ${scheduleId.slice(0, 8)}`);
+        const start = payload?.horario?.inicio ? new Date(payload.horario.inicio).toLocaleString('es-UY') : '';
+        const end = payload?.horario?.fin
+          ? new Date(payload.horario.fin).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })
+          : '';
+        setAttendanceTimeLabel(start && end ? `${start} - ${end}` : start || '');
+      } catch (err) {
+        setError(toUserErrorMessage(err, 'No se pudo cargar asistencia de clase.'));
+        setAttendanceRows([]);
+      } finally {
+        setAttendanceLoading(false);
+      }
+    },
+    []
+  );
+
+  const markAttendance = async (reservaId: string, estado: 'asistio' | 'ausente' | 'confirmada') => {
+    if (!attendanceScheduleId) return;
+    setAttendanceActionId(reservaId);
+    setError(null);
+    try {
+      await apiMutation('/api/gymcrm/clases/asistencia', 'PATCH', {
+        horario_id: attendanceScheduleId,
+        reserva_id: reservaId,
+        estado,
+        metodo_checkin: 'manual',
+      });
+      analytics.track('asistencia_actualizada_staff', {
+        horario_id: attendanceScheduleId,
+        reserva_id: reservaId,
+        estado,
+      });
+      fireHaptic('success');
+      await loadAttendance(attendanceScheduleId);
+    } catch (err) {
+      setError(toUserErrorMessage(err, 'No se pudo actualizar asistencia.'));
+      fireHaptic('error');
+    } finally {
+      setAttendanceActionId(null);
+    }
+  };
+
+  const registerCheckinByQr = async () => {
+    if (!attendanceScheduleId) {
+      setError('Selecciona un horario para registrar check-in por QR.');
+      fireHaptic('warning');
+      return;
+    }
+
+    if (!attendanceQrCode.trim()) {
+      setError('Ingresa un código QR válido.');
+      fireHaptic('warning');
+      return;
+    }
+
+    setAttendanceActionId('qr');
+    setError(null);
+
+    try {
+      await apiMutation('/api/gymcrm/checkins', 'POST', {
+        codigo_qr: attendanceQrCode.trim(),
+        horario_id: attendanceScheduleId,
+        metodo: 'qr',
+      });
+      analytics.track('checkin_qr_staff', { horario_id: attendanceScheduleId });
+      setAttendanceQrCode('');
+      fireHaptic('success');
+      await loadAttendance(attendanceScheduleId);
+    } catch (err) {
+      setError(toUserErrorMessage(err, 'No se pudo registrar check-in por QR.'));
+      fireHaptic('error');
+    } finally {
+      setAttendanceActionId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'attendance' || !attendanceScheduleId) return;
+    void loadAttendance(attendanceScheduleId);
+  }, [activeTab, attendanceScheduleId, loadAttendance]);
 
   return (
     <div className="relative min-h-screen bg-background overflow-hidden selection:bg-rose-500/30 font-sans pb-20">
@@ -244,6 +408,16 @@ export default function AdminClassesPage() {
             }`}
           >
             Tipos de Clase
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance')}
+            data-testid="admin-classes-tab-attendance"
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold uppercase tracking-widest transition-all ${
+              activeTab === 'attendance' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Asistencia
           </button>
         </div>
 
@@ -336,7 +510,7 @@ export default function AdminClassesPage() {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'schedule' ? (
           <div className="space-y-6">
             <GlassPanel>
               <h2 className="text-white font-semibold mb-4">Nuevo horario</h2>
@@ -380,7 +554,7 @@ export default function AdminClassesPage() {
                 {schedules.map((schedule) => (
                   <GlassPanel key={schedule.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-white font-semibold">{classMap[schedule.clase_base_id]?.nombre ?? `Clase ${schedule.clase_base_id.slice(0, 8)}`}</h3>
+                      <h3 className="text-white font-semibold">{classMap[schedule.clase_base_id]?.nombre ?? schedule.clase_nombre ?? 'Clase programada'}</h3>
                       <p className="text-sm text-gray-400">
                         <Calendar className="w-4 h-4 inline mr-1" />
                         {new Date(schedule.inicio).toLocaleString('es-UY')} - {new Date(schedule.fin).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}
@@ -389,6 +563,18 @@ export default function AdminClassesPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-gray-200">Cupo {schedule.cupo_total}</span>
                       <StatusPill tone={schedule.estado === 'programada' ? 'success' : 'danger'}>{schedule.estado}</StatusPill>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('attendance');
+                          setAttendanceScheduleId(schedule.id);
+                          void loadAttendance(schedule.id);
+                        }}
+                        data-testid={`admin-open-attendance-${schedule.id}`}
+                        className="px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30"
+                      >
+                        Asistencia
+                      </button>
                       <button
                         onClick={() => cancelSchedule(schedule.id)}
                         className="px-4 py-2 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30"
@@ -400,6 +586,137 @@ export default function AdminClassesPage() {
                 ))}
               </div>
             )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <GlassPanel>
+              <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-cyan-300" />
+                Control de asistencia
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <select
+                  value={attendanceScheduleId}
+                  onChange={(event) => setAttendanceScheduleId(event.target.value)}
+                  data-testid="attendance-schedule-select"
+                  className="bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+                >
+                  <option value="">Selecciona horario</option>
+                  {schedules
+                    .filter((schedule) => schedule.estado === 'programada')
+                    .map((schedule) => (
+                      <option key={schedule.id} value={schedule.id}>
+                        {(classMap[schedule.clase_base_id]?.nombre ?? schedule.clase_nombre ?? 'Clase')} -{' '}
+                        {new Date(schedule.inicio).toLocaleString('es-UY')}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (attendanceScheduleId) {
+                      void loadAttendance(attendanceScheduleId);
+                    }
+                  }}
+                  data-testid="attendance-load"
+                  className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-semibold"
+                >
+                  <span className="inline-flex items-center gap-2 px-4 py-2.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Cargar asistencia
+                  </span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={attendanceQrCode}
+                    onChange={(event) => setAttendanceQrCode(event.target.value)}
+                    placeholder="Escanear/pegar QR"
+                    data-testid="attendance-qr-input"
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={registerCheckinByQr}
+                    disabled={attendanceActionId === 'qr'}
+                    data-testid="attendance-qr-submit"
+                    className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold disabled:opacity-60"
+                  >
+                    <span className="inline-flex items-center gap-2 px-4 py-2.5">
+                      <ScanLine className="w-4 h-4" />
+                      QR
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {attendanceClassName ? (
+                <p className="mt-3 text-sm text-gray-400">
+                  {attendanceClassName}
+                  {attendanceTimeLabel ? ` • ${attendanceTimeLabel}` : ''}
+                </p>
+              ) : null}
+            </GlassPanel>
+
+            <GlassPanel>
+              {attendanceLoading ? (
+                <p className="text-gray-400">Cargando asistencia...</p>
+              ) : attendanceRows.length === 0 ? (
+                <EmptyState
+                  title="Sin asistentes para este horario"
+                  description="Cuando existan reservas en este horario verás aquí el control asistió/ausente y check-ins."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {attendanceRows.map((row) => (
+                    <div
+                      key={row.reserva_id}
+                      className="rounded-xl border border-white/10 bg-black/20 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-white font-medium">{row.cliente_nombre}</p>
+                        <p className="text-xs text-gray-400">
+                          reserva {row.estado_reserva}
+                          {row.checkin
+                            ? ` • check-in ${row.checkin.metodo} ${new Date(row.checkin.created_at).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}`
+                            : ' • sin check-in'}
+                        </p>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <StatusPill tone={row.asistencia_estado === 'asistio' ? 'success' : row.asistencia_estado === 'ausente' ? 'danger' : 'neutral'}>
+                          {row.asistencia_estado}
+                        </StatusPill>
+                        <button
+                          type="button"
+                          onClick={() => markAttendance(row.reserva_id, 'asistio')}
+                          disabled={attendanceActionId === row.reserva_id}
+                          data-testid={`attendance-mark-asistio-${row.reserva_id}`}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs disabled:opacity-60"
+                        >
+                          Asistió
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAttendance(row.reserva_id, 'ausente')}
+                          disabled={attendanceActionId === row.reserva_id}
+                          data-testid={`attendance-mark-ausente-${row.reserva_id}`}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 text-xs disabled:opacity-60"
+                        >
+                          Ausente
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAttendance(row.reserva_id, 'confirmada')}
+                          disabled={attendanceActionId === row.reserva_id}
+                          data-testid={`attendance-mark-confirmada-${row.reserva_id}`}
+                          className="px-3 py-1.5 rounded-lg bg-white/10 text-gray-200 hover:bg-white/20 text-xs disabled:opacity-60"
+                        >
+                          Restablecer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassPanel>
           </div>
         )}
       </div>
